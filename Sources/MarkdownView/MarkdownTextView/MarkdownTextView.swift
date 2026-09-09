@@ -19,7 +19,7 @@ import MarkdownParser
 
         @available(*, deprecated, renamed: "content")
         public var document: MarkdownContent { content }
-        public let textLabelView: TextLabelView = .init()
+        public let textLabelView: TextLabelView
 
         @available(*, deprecated, renamed: "textLabelView")
         public var textView: TextLabelView { textLabelView }
@@ -52,7 +52,11 @@ import MarkdownParser
 
         let viewProvider: ReusableViewProvider
 
-        public init(viewProvider: ReusableViewProvider = .init()) {
+        /// - Parameter textLabelView: the label that draws the document body.
+        ///   Pass a `TextLabelView` subclass to change how body text is drawn
+        ///   while code blocks, tables and selection keep working as before.
+        public init(textLabelView: TextLabelView = .init(), viewProvider: ReusableViewProvider = .init()) {
+            self.textLabelView = textLabelView
             self.viewProvider = viewProvider
             super.init(frame: .zero)
             textLabelView.isSelectable = true
@@ -205,7 +209,7 @@ import MarkdownParser
 
         @available(*, deprecated, renamed: "content")
         public var document: MarkdownContent { content }
-        public let textLabelView: TextLabelView = .init()
+        public let textLabelView: TextLabelView
 
         @available(*, deprecated, renamed: "textLabelView")
         public var textView: TextLabelView { textLabelView }
@@ -238,7 +242,11 @@ import MarkdownParser
 
         let viewProvider: ReusableViewProvider
 
-        public init(viewProvider: ReusableViewProvider = .init()) {
+        /// - Parameter textLabelView: the label that draws the document body.
+        ///   Pass a `TextLabelView` subclass to change how body text is drawn
+        ///   while code blocks, tables and selection keep working as before.
+        public init(textLabelView: TextLabelView = .init(), viewProvider: ReusableViewProvider = .init()) {
+            self.textLabelView = textLabelView
             self.viewProvider = viewProvider
             super.init(frame: .zero)
             textLabelView.isSelectable = true
