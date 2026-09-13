@@ -44,6 +44,13 @@ public final class MarkdownContent: @unchecked Sendable {
     public let highlightMaps: [Int: CodeHighlighter.HighlightMap]
     public let locale: Locale
 
+    /// Images the host app has already loaded, keyed by the markdown source
+    /// string (URL or path) so inline image nodes can render them directly.
+    public var loadedImages: [String: PlatformImage] = [:]
+    /// The width available for inline content, used to scale images that
+    /// would otherwise overflow the container.
+    public var contentWidth: CGFloat = 0
+
     public init(
         blocks: [MarkdownBlockNode],
         rendered: RenderedTextContent.Map,
