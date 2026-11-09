@@ -151,9 +151,13 @@ extension MarkdownInlineNode {
                         runOffsetX += CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), nil, nil, nil)
                     }
 
+                    // Litext sizes an attachment's line as 90% above the baseline and 10% below
+                    // (Attachment.descentFraction, internal to Litext, so mirrored here). Drawing
+                    // from the baseline instead covers the line above by that 10%.
+                    let descentFraction: CGFloat = 0.1
                     let rect = CGRect(
                         x: lineOrigin.x + runOffsetX,
-                        y: lineOrigin.y,
+                        y: lineOrigin.y - capturedSize.height * descentFraction,
                         width: capturedSize.width,
                         height: capturedSize.height
                     )
