@@ -208,8 +208,12 @@ import Litext
         }
 
         override func draw(_ dirtyRect: NSRect) {
-            guard let context = NSGraphicsContext.current?.cgContext else { return }
-            context.clear(dirtyRect)
+            guard let graphicsContext = NSGraphicsContext.current else { return }
+            // Only clear on screen: in a PDF or print context `clear` paints solid black, and
+            // there is nothing underneath to clear anyway.
+            if graphicsContext.isDrawingToScreen {
+                graphicsContext.cgContext.clear(dirtyRect)
+            }
 
             guard lineCount > 0, contentHeight > 0 else { return }
 
