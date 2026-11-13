@@ -13,7 +13,7 @@ A pure UIKit/AppKit framework for rendering Markdown with real-time parsing and 
 
 - 🚀 **Real-time Rendering**: designed for streaming — updates are throttled and views are reused, so calling it on every token is fine
 - 📱 **Mobile-first Layout**: complex elements are extracted from lists and laid out for readability on small screens
-- 🎨 **Syntax Highlighting**: code blocks highlighted asynchronously with Highlightr
+- 🎨 **Syntax Highlighting**: code blocks coloured in Xcode's palette by a built-in, dependency-free lexer covering about 25 language families. It is approximate by design — keywords, strings, comments, numbers and types, not a parser — chosen to read well and stay fast (tens of microseconds for a typical block)
 - 📊 **Math Rendering**: LaTeX formulas rendered with SwiftMath, with tap-to-preview
 - 🖥️ **Cross-Platform**: native iOS, macOS, Mac Catalyst, visionOS, and watchOS (via `WatchMarkdownView`)
 
@@ -88,6 +88,52 @@ Immediate, unthrottled replacement:
 ```swift
 markdownTextView.setContentImmediately(content)
 ```
+
+### Streaming with animation
+
+`MarkdownStreamView` is a `MarkdownTextView` for an answer that is still being written. While `isStreaming` is on, `setContent(_:)` rebuilds at a pace set by what a rebuild costs, the new text fades in, in the body, inside code blocks and in table cells, and new code blocks and tables fade in whole. Everything else appears at once, and with `isStreaming` off the view behaves exactly like `MarkdownTextView`.
+
+```swift
+let view = MarkdownStreamView()
+view.streamIdentity = message.id      // a reused row never replays another item's text
+view.isStreaming = message.isGenerating
+view.setContentImmediately(content)   // the first fill appears at once
+view.setContent(nextContent)          // more of the stream fades in
+```
+
+In a list, turn streaming on only for the row that is being written. A view that is not in a window, such as one measuring a row's height, never animates. In SwiftUI, use `MarkdownView(text).streaming(isGenerating)`.
+
+Set `animator` to change the effect. Code blocks and table cells fade in the way the body does, each with an animator of its own: an `LTXFadeInAnimator` configured like `animator`, or with the default configuration when `animator` is another effect. Only text appended to what a block showed fades in, so a block view the stream reuses for another block shows it at once, and turning `isStreaming` off lets the text in flight finish. To give blocks an effect of their own, subclass and override `makeBlockAnimator()`:
+
+```swift
+final class AnswerView: MarkdownStreamView {
+    override func makeBlockAnimator() -> (any LTXTextAnimator)? {
+        LTXFadeUpAnimator()                // nil shows text inside blocks at once
+    }
+}
+```
+
+### The unfinished end of a stream
+
+Parsed as it arrives, a half-written answer flickers: `**bo` shows its asterisks until they close, a lone `-` flashes as an empty list item, and ```` ```sw ```` names a language from half its name. Parse with `isStreaming` and the end is closed the way it is heading instead, so `**bo` already shows as bold `bo` and grows into `bold`:
+
+```swift
+let result = MarkdownParser().parse(accumulatedText, isStreaming: true)
+// or
+let content = MarkdownContent(markdown: accumulatedText, isStreaming: true)
+```
+
+It holds back a last line of bare markers and a partial fence line, closes emphasis, strikethrough and code spans opened on the last line, closes an unfinished link destination, drops an unfinished image, and gives a table header its delimiter row early. It only cuts and appends at the very end, so every earlier block parses to the same bytes and is reused by the next rebuild. It leaves fenced code and unclosed `$$` math alone. `MarkdownView(text).streaming(true)` does this for you, and parses the text again without it when the stream ends. Build the final update of a stream without it, so the document lands on exactly what the text says.
+
+### Subclassing
+
+`MarkdownTextView` is open the way Litext's `TextLabelView` is: its handlers, `theme`, `throttleInterval`, the content setters and its `TextLabelViewDelegate` methods can be overridden (call `super`). To change how the body is drawn, pass your own label:
+
+```swift
+let view = MarkdownTextView(textLabelView: MyLabel()) // any TextLabelView subclass, LTXAnimatableLabel included
+```
+
+Inline code is drawn on its pill by an `InlineCodeLineRenderer`, a Litext line renderer. A label that arrives without a `lineRenderer` is given one, so the pill survives a label that returns a layout of its own; subclass `InlineCodeLineRenderer` to draw more behind the lines.
 
 ### watchOS
 

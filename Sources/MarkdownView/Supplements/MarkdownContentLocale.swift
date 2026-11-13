@@ -1,9 +1,5 @@
 import Foundation
 
-#if canImport(NaturalLanguage)
-    import NaturalLanguage
-#endif
-
 @MainActor
 enum MarkdownContentLocale {
     private final class CachedLanguageRuns: NSObject {
@@ -28,7 +24,7 @@ enum MarkdownContentLocale {
 
     static func applyLanguageAttributes(
         to attributedString: NSMutableAttributedString,
-        fallbackLocale: Locale
+        fallbackLocale: Locale,
     ) {
         guard attributedString.length > 0 else { return }
 
@@ -37,8 +33,30 @@ enum MarkdownContentLocale {
             attributedString.addAttribute(
                 .coreTextLanguage,
                 value: language,
-                range: range
+                range: range,
             )
+        }
+    }
+
+    /// Picks each run's fallback font for the language it is written in.
+    ///
+    /// The language attribute is applied, the fonts are resolved against it,
+    /// and then it is dropped wherever it no longer changes what the reader
+    /// sees — see ``affectsShaping(_:)``. A run whose font is replaced after
+    /// this has lost the language it was resolved for, so it must come back
+    /// through here rather than being left to the pass over the document.
+    static func resolveFonts(
+        in attributedString: NSMutableAttributedString,
+        fallbackLocale: Locale,
+    ) {
+        applyLanguageAttributes(to: attributedString, fallbackLocale: fallbackLocale)
+        let fullRange = NSRange(location: 0, length: attributedString.length)
+        attributedString.fixAttributes(in: fullRange)
+        attributedString.enumerateAttribute(.coreTextLanguage, in: fullRange, options: []) { value, range, _ in
+            guard let language = value as? String,
+                  !affectsShaping(language)
+            else { return }
+            attributedString.removeAttribute(.coreTextLanguage, range: range)
         }
     }
 
@@ -55,35 +73,19 @@ enum MarkdownContentLocale {
     /// - Traditional Chinese picks a different glyph for 41% of them.
     /// - Korean breaks lines differently.
     ///
-    /// Simplified Chinese and Japanese change neither. Anything else — Arabic,
+    /// Simplified Chinese and Japanese change neither. The reader's locale is
+    /// spelled through ``normalizedLanguage(_:)`` first, so `zh_CN` arrives
+    /// here as `zh-Hans`. Anything else — Arabic,
     /// Hebrew, a language added later — keeps the attribute, because the cost
     /// of being wrong is a reader seeing the wrong shapes.
     static func affectsShaping(_ language: String) -> Bool {
         language != "zh-Hans" && language != "ja"
     }
 
-    static func dominantLanguageIdentifier(
-        for text: String,
-        fallbackLocale: Locale
-    ) -> String? {
-        let scriptLanguage = scriptLanguageIdentifier(for: text, fallbackLocale: fallbackLocale)
-        if scriptLanguage != nil {
-            return scriptLanguage
-        }
-
-        #if canImport(NaturalLanguage)
-            let recognizer = NLLanguageRecognizer()
-            recognizer.processString(text)
-            return recognizer.dominantLanguage?.rawValue
-        #else
-            return nil
-        #endif
-    }
-
     private static func languageIdentifier(
         for character: Character,
         token: LanguageToken?,
-        fallbackLocale: Locale
+        fallbackLocale: Locale,
     ) -> String? {
         if let token, character.unicodeScalars.contains(where: { isHan($0.value) }) {
             if token.containsKana {
@@ -97,15 +99,8 @@ enum MarkdownContentLocale {
     }
 
     private static func scriptLanguageIdentifier(
-        for text: String,
-        fallbackLocale: Locale
-    ) -> String? {
-        scriptLanguageIdentifier(scalars: text.unicodeScalars, fallbackLocale: fallbackLocale)
-    }
-
-    private static func scriptLanguageIdentifier(
         scalars: some Sequence<Unicode.Scalar>,
-        fallbackLocale: Locale
+        fallbackLocale: Locale,
     ) -> String? {
         var containsHan = false
         var containsArabic = false
@@ -142,18 +137,61 @@ enum MarkdownContentLocale {
         return nil
     }
 
+    /// The language Han text is written in for a reader in `locale`.
+    ///
+    /// Memoized per locale identifier: it is asked for on every text that
+    /// misses the run cache, and the answer only depends on the locale.
     private static func preferredCJKLanguageIdentifier(_ locale: Locale) -> String {
-        let identifier = locale.identifier
-        if identifier.hasPrefix("ja") {
+        let key = locale.identifier
+        if let cached = cjkLanguageByLocale[key] {
+            return cached
+        }
+        let language = normalizedLanguage(locale.language)
+        cjkLanguageByLocale[key] = language
+        return language
+    }
+
+    private static var cjkLanguageByLocale: [String: String] = [:]
+
+    /// One spelling per way of drawing Han text, read from the locale's
+    /// language, script and region rather than from its identifier string.
+    ///
+    /// The locale arrives as `zh_CN`, `zh-Hans-CN`, `zh_SG` or plain `zh`, and
+    /// every one of those draws Simplified Chinese exactly as `zh-Hans` does —
+    /// same font, same glyphs, same advances. Spelled `zh-Hans` the attribute
+    /// can be dropped once the font is resolved (see ``affectsShaping(_:)``);
+    /// spelled any other way it stayed on every run and made each rebuild
+    /// pay for it.
+    ///
+    /// Traditional Chinese keeps its region: Hong Kong and Macau are drawn
+    /// with their own fonts and differ from `zh-Hant` in hundreds of glyphs,
+    /// so collapsing them would change what those readers see. Taiwan draws
+    /// exactly as `zh-Hant` does and is spelled that way, which CoreText
+    /// shapes measurably faster than `zh-Hant-TW`.
+    ///
+    /// Any language that is not Chinese, Japanese or Korean falls back to
+    /// Simplified Chinese, as it always has.
+    static func normalizedLanguage(_ language: Locale.Language) -> String {
+        switch language.languageCode {
+        case .japanese?:
             return "ja"
-        }
-        if identifier.hasPrefix("ko") {
+        case .korean?:
             return "ko"
+        case .chinese?:
+            break
+        default:
+            return "zh-Hans"
         }
-        if identifier.hasPrefix("zh") {
-            return identifier
+
+        let script = language.script
+            ?? Locale.Language(identifier: language.maximalIdentifier).script
+        guard script == .hanTraditional else {
+            return "zh-Hans"
         }
-        return "zh-Hans"
+        guard let region = language.region, region != .taiwan else {
+            return "zh-Hant"
+        }
+        return "zh-Hant-\(region.identifier)"
     }
 
     private static func characterRanges(in string: String) -> [NSRange] {
@@ -169,7 +207,7 @@ enum MarkdownContentLocale {
 
     private static func cachedLanguageRuns(
         for string: String,
-        fallbackLocale: Locale
+        fallbackLocale: Locale,
     ) -> [(NSRange, String)] {
         let key = "\(fallbackLocale.identifier)|\(string)" as NSString
         if let cached = cache.object(forKey: key) {
@@ -199,7 +237,7 @@ enum MarkdownContentLocale {
             let language = languageIdentifier(
                 for: character,
                 token: token,
-                fallbackLocale: fallbackLocale
+                fallbackLocale: fallbackLocale,
             )
             if language != currentLanguage {
                 flush(until: range.location)
@@ -251,7 +289,7 @@ enum MarkdownContentLocale {
                 currentToken = LanguageToken(
                     range: range,
                     containsKana: containsKana,
-                    containsHangul: containsHangul
+                    containsHangul: containsHangul,
                 )
             }
         }

@@ -18,7 +18,7 @@ private func builtinSystemImage(_ name: String) -> PlatformImage {
     #if canImport(UIKit)
         guard let image = UIImage(
             systemName: name,
-            withConfiguration: UIImage.SymbolConfiguration(scale: .small)
+            withConfiguration: UIImage.SymbolConfiguration(scale: .small),
         ) else { return .init() }
         let template = image.withTintColor(.label, renderingMode: .alwaysTemplate)
     #elseif canImport(AppKit)
@@ -36,7 +36,9 @@ private func builtinSystemImage(_ name: String) -> PlatformImage {
 @MainActor private var kNumberCircleImageCache: [Int: PlatformImage] = [:]
 
 @MainActor private func kNumberCircleImage(_ number: Int) -> PlatformImage {
-    if let cached = kNumberCircleImageCache[number] { return cached }
+    if let cached = kNumberCircleImageCache[number] {
+        return cached
+    }
     let image = builtinSystemImage("\(number).circle.fill")
     kNumberCircleImageCache[number] = image
     return image
@@ -51,15 +53,19 @@ extension TextBuilder {
         return .init(x: lineOrigin.x, y: lineOrigin.y - descent, width: width, height: ascent + descent)
     }
 
-    static func build(view: MarkdownTextView, viewProvider: ReusableViewProvider) -> BuildResult {
+    static func build(
+        view: MarkdownTextView,
+        viewProvider: ReusableViewProvider,
+        ownedContextViews: [PlatformView] = [],
+    ) -> BuildResult {
         let context: MarkdownContent = view.content
         let theme: MarkdownTheme = view.theme
 
-        /// Color and font a drawn marker takes from the line it belongs to.
-        ///
-        /// The marker's own run leads the line, so its attributes are the ones a
-        /// marker has to match: the color the theme gave that item, and the font
-        /// whose cap height places the marker column.
+        // Color and font a drawn marker takes from the line it belongs to.
+        //
+        // The marker's own run leads the line, so its attributes are the ones a
+        // marker has to match: the color the theme gave that item, and the font
+        // whose cap height places the marker column.
         func markerStyle(of line: CTLine) -> (color: PlatformColor, font: PlatformFont) {
             var color = theme.colors.body
             var font = theme.fonts.body
@@ -76,7 +82,7 @@ extension TextBuilder {
             return (color, font)
         }
 
-        /// Draws a template symbol inside the marker column, scaled to fit it.
+        // Draws a template symbol inside the marker column, scaled to fit it.
         func drawSymbol(_ image: PlatformImage, in column: CGRect, color: PlatformColor, context: CGContext) {
             #if canImport(UIKit)
                 guard let cgImage = image.cgImage else { return }
@@ -92,6 +98,8 @@ extension TextBuilder {
         return TextBuilder(nodes: context.blocks, context: context, viewProvider: viewProvider)
             .withTheme(theme)
             .withFragmentCache(view.blockFragmentCache)
+            .withHighlightRequester(ObjectIdentifier(view))
+            .withOwnedContextViews(ownedContextViews)
             .withInlineTextDecoration { [weak view] text in
                 guard let view else { return text }
                 return view.decorate(inlineText: text, theme: theme)
@@ -106,7 +114,7 @@ extension TextBuilder {
                     x: column.midX - radius,
                     y: column.midY - radius,
                     width: radius * 2,
-                    height: radius * 2
+                    height: radius * 2,
                 )
                 if depth == 0 {
                     context.fillEllipse(in: rect)
@@ -130,7 +138,7 @@ extension TextBuilder {
                 // hangs from the column's trailing edge instead of sharing its center.
                 let font = PlatformFont.monospacedDigitSystemFont(
                     ofSize: theme.fonts.footnote.pointSize,
-                    weight: .regular
+                    weight: .regular,
                 )
                 let attributedText = NSAttributedString(string: "\(num).", attributes: [
                     .font: font,
@@ -143,21 +151,25 @@ extension TextBuilder {
                 context.textMatrix = .identity
                 context.textPosition = .init(
                     x: column.maxX - width,
-                    y: column.midY - (ascent - descent) / 2
+                    y: column.midY - (ascent - descent) / 2,
                 )
                 CTLineDraw(textLine, context)
             }
             .withCheckboxDrawing { context, line, lineOrigin, isChecked in
                 let style = markerStyle(of: line)
                 let column = ListMarkerLayout.column(lineOrigin: lineOrigin, font: style.font)
-                let image = if isChecked { kCheckedBoxImage } else { kUncheckedBoxImage }
+                let image = if isChecked {
+                    kCheckedBoxImage
+                } else {
+                    kUncheckedBoxImage
+                }
                 context.saveGState()
                 defer { context.restoreGState() }
                 drawSymbol(
                     image,
                     in: column,
                     color: style.color.withAlphaComponent(0.24),
-                    context: context
+                    context: context,
                 )
             }
             .withThematicBreakDrawing { [weak view] context, line, lineOrigin in

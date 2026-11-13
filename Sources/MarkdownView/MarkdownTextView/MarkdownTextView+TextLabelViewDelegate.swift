@@ -1,5 +1,5 @@
 //
-//  MarkdownTextView+LTXDelegate.swift
+//  MarkdownTextView+TextLabelViewDelegate.swift
 //  MarkdownView
 //
 //  Created by 秋星桥 on 7/9/25.
@@ -7,16 +7,13 @@
 
 import Litext
 
+/// The delegate methods live in the class body, so a subclass can override
+/// them; see `MarkdownTextView`.
+extension MarkdownTextView: TextLabelViewDelegate {}
+
 #if canImport(UIKit)
-    import UIKit
-
-    extension MarkdownTextView: TextLabelViewDelegate {
-        public func textLabelView(_: TextLabelView, didChangeSelection _: NSRange?) {
-            // reserved for future use
-        }
-
-        public func textLabelView(_ label: TextLabelView, didDragSelectionAt location: CGPoint) {
-            guard let scrollView = trackedScrollView else { return }
+    extension MarkdownTextView {
+        func autoScroll(_ scrollView: UIScrollView, toFollowDragAt location: CGPoint, in label: TextLabelView) {
             guard scrollView.contentSize.height > scrollView.bounds.height else { return }
 
             let edgeDetection = CGFloat(16)
@@ -36,39 +33,16 @@ import Litext
             let minOffsetY = -scrollView.adjustedContentInset.top
             let maxOffsetY = max(
                 minOffsetY,
-                scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - scrollView.bounds.height
+                scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - scrollView.bounds.height,
             )
             currentOffset.y = min(max(currentOffset.y, minOffsetY), maxOffsetY)
             scrollView.setContentOffset(currentOffset, animated: false)
         }
-
-        public func textLabelView(_: TextLabelView, didTapHighlightRegion highlightRegion: TextLabel.HighlightRegion, at location: CGPoint) {
-
-            if let latexContent = highlightRegion.attributes[.mathLatexContent] as? String {
-                presentMathPreview(for: latexContent, theme: theme)
-                return
-            }
-
-            let link = highlightRegion.attributes[NSAttributedString.Key.link]
-            let range = highlightRegion.stringRange
-            if let url = link as? URL {
-                linkHandler?(.url(url), range, location)
-            } else if let string = link as? String {
-                linkHandler?(.string(string), range, location)
-            }
-        }
     }
 
 #elseif canImport(AppKit)
-    import AppKit
-
-    extension MarkdownTextView: TextLabelViewDelegate {
-        public func textLabelView(_: TextLabelView, didChangeSelection _: NSRange?) {
-            // reserved for future use
-        }
-
-        public func textLabelView(_ label: TextLabelView, didDragSelectionAt location: CGPoint) {
-            guard let scrollView = trackedScrollView else { return }
+    extension MarkdownTextView {
+        func autoScroll(_ scrollView: NSScrollView, toFollowDragAt location: CGPoint, in label: TextLabelView) {
             guard let documentView = scrollView.documentView else { return }
             guard documentView.bounds.height > scrollView.bounds.height else { return }
 
@@ -86,25 +60,12 @@ import Litext
             } else {
                 newOrigin.y += abs(locationInScrollView.y - visibleRect.maxY)
             }
-            newOrigin.y = max(0, newOrigin.y)
-            newOrigin.y = min(newOrigin.y, documentView.bounds.height - scrollView.bounds.height)
-            documentView.scroll(newOrigin)
-        }
-
-        public func textLabelView(_: TextLabelView, didTapHighlightRegion highlightRegion: TextLabel.HighlightRegion, at location: CGPoint) {
-
-            if let latexContent = highlightRegion.attributes[.mathLatexContent] as? String {
-                presentMathPreview(for: latexContent, theme: theme)
-                return
-            }
-
-            let link = highlightRegion.attributes[NSAttributedString.Key.link]
-            let range = highlightRegion.stringRange
-            if let url = link as? URL {
-                linkHandler?(.url(url), range, location)
-            } else if let string = link as? String {
-                linkHandler?(.string(string), range, location)
-            }
+            // The clip view knows its own limits — content insets and the
+            // room scrollers take — so let it clamp the origin.
+            let clipView = scrollView.contentView
+            let proposed = CGRect(origin: newOrigin, size: clipView.bounds.size)
+            clipView.scroll(to: clipView.constrainBoundsRect(proposed).origin)
+            scrollView.reflectScrolledClipView(clipView)
         }
     }
 #endif

@@ -13,6 +13,7 @@ import SwiftUI
     struct MarkdownViewRepresentable: UIViewRepresentable, MarkdownViewRepresentableBase {
         let contentSource: MarkdownView.ContentSource
         let theme: MarkdownTheme
+        let isStreaming: Bool?
 
         func makeUIView(context _: Context) -> MarkdownTextView {
             createMarkdownTextView()
@@ -25,7 +26,7 @@ import SwiftUI
         func sizeThatFits(
             _ proposal: ProposedViewSize,
             uiView: MarkdownTextView,
-            context: Context
+            context: Context,
         ) -> CGSize? {
             context.coordinator.sizeThatFits(proposal, for: uiView)
         }
@@ -41,6 +42,7 @@ import SwiftUI
     struct MarkdownViewRepresentable: NSViewRepresentable, MarkdownViewRepresentableBase {
         let contentSource: MarkdownView.ContentSource
         let theme: MarkdownTheme
+        let isStreaming: Bool?
 
         func makeNSView(context _: Context) -> MarkdownTextView {
             createMarkdownTextView()
@@ -53,7 +55,7 @@ import SwiftUI
         func sizeThatFits(
             _ proposal: ProposedViewSize,
             nsView: MarkdownTextView,
-            context: Context
+            context: Context,
         ) -> CGSize? {
             context.coordinator.sizeThatFits(proposal, for: nsView)
         }

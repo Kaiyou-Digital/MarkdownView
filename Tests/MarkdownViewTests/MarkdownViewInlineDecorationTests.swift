@@ -34,17 +34,19 @@ private func markedRangeCount(in view: MarkdownTextView) -> Int {
     var count = 0
     text.enumerateAttribute(
         ChipTextView.marker,
-        in: NSRange(location: 0, length: text.length)
+        in: NSRange(location: 0, length: text.length),
     ) { value, _, _ in
-        if value != nil { count += 1 }
+        if value != nil {
+            count += 1
+        }
     }
     return count
 }
 
 struct MarkdownViewInlineDecorationTests {
     @MainActor
-    @Test("A subclass decorates body text, and only body text")
-    func decoratesBodyText() {
+    @Test
+    func `A subclass decorates body text, and only body text`() {
         let view = ChipTextView()
         view.frame = .init(x: 0, y: 0, width: 400, height: 200)
 
@@ -56,8 +58,8 @@ struct MarkdownViewInlineDecorationTests {
     }
 
     @MainActor
-    @Test("The default view leaves text alone")
-    func defaultViewDecoratesNothing() {
+    @Test
+    func `The default view leaves text alone`() {
         let view = MarkdownTextView()
         view.frame = .init(x: 0, y: 0, width: 400, height: 200)
         view.setMarkdown("hello @agent")
@@ -66,8 +68,8 @@ struct MarkdownViewInlineDecorationTests {
     }
 
     @MainActor
-    @Test("Invalidating rebuilds text the fragment cache would have reused")
-    func invalidationRebuildsDecoratedText() {
+    @Test
+    func `Invalidating rebuilds text the fragment cache would have reused`() {
         let view = ChipTextView()
         view.frame = .init(x: 0, y: 0, width: 400, height: 200)
         view.rosterLoaded = false

@@ -18,27 +18,28 @@ import MarkdownParser
 final class ListProcessor {
     private let theme: MarkdownTheme
     private let context: MarkdownContent
-    private let viewProvider: ReusableViewProvider
     private let bulletDrawing: TextBuilder.BulletDrawingCallback?
     private let numberedDrawing: TextBuilder.NumberedDrawingCallback?
     private let checkboxDrawing: TextBuilder.CheckboxDrawingCallback?
+    /// The view the markers are drawn for; see `MarkLineDrawingAction`.
+    private let drawingOwner: ObjectIdentifier?
     private let inlineTextDecoration: TextBuilder.InlineTextDecoration?
 
     init(
         theme: MarkdownTheme,
-        viewProvider: ReusableViewProvider,
         context: MarkdownContent,
         bulletDrawing: TextBuilder.BulletDrawingCallback?,
         numberedDrawing: TextBuilder.NumberedDrawingCallback?,
         checkboxDrawing: TextBuilder.CheckboxDrawingCallback?,
-        inlineTextDecoration: TextBuilder.InlineTextDecoration?
+        drawingOwner: ObjectIdentifier?,
+        inlineTextDecoration: TextBuilder.InlineTextDecoration?,
     ) {
         self.theme = theme
-        self.viewProvider = viewProvider
         self.context = context
         self.bulletDrawing = bulletDrawing
         self.numberedDrawing = numberedDrawing
         self.checkboxDrawing = checkboxDrawing
+        self.drawingOwner = drawingOwner
         self.inlineTextDecoration = inlineTextDecoration
     }
 
@@ -78,24 +79,21 @@ final class ListProcessor {
                 // an `[obj]` box. The attachment hands the pasteboard the markdown the
                 // drawing stands for instead.
                 .litextAttachment: TextLabel.Attachment.hold(
-                    attrString: .init(string: Self.markerText(for: item))
+                    attrString: .init(string: Self.markerText(for: item)),
                 ),
-                .litextLineDrawingAction: TextLabel.LineDrawingAction(action: { context, line, lineOrigin in
-                    if item.ordered {
-                        numberedDrawing(context, line, lineOrigin, item.index)
-                    } else if item.isTask {
-                        checkboxDrawing(context, line, lineOrigin, item.isDone)
-                    } else {
-                        bulletDrawing(context, line, lineOrigin, item.depth)
-                    }
-                }),
+                .litextLineDrawingAction: markerDrawing(
+                    for: item,
+                    bullet: bulletDrawing,
+                    numbered: numberedDrawing,
+                    checkbox: checkboxDrawing,
+                ),
             ]))
         }
-        string.append(item.paragraph.render(theme: theme, context: context, viewProvider: viewProvider, decoration: inlineTextDecoration))
+        string.append(item.paragraph.render(theme: theme, context: context, decoration: inlineTextDecoration))
 
         string.addAttributes(
             [.paragraphStyle: paragraphStyle],
-            range: .init(location: 0, length: string.length)
+            range: .init(location: 0, length: string.length),
         )
         string.append(.init(string: "\n"))
         return string
@@ -130,6 +128,33 @@ final class ListProcessor {
 // MARK: - List Processing Types and Logic
 
 extension ListProcessor {
+    private func markerDrawing(
+        for item: ListItem,
+        bullet: @escaping TextBuilder.BulletDrawingCallback,
+        numbered: @escaping TextBuilder.NumberedDrawingCallback,
+        checkbox: @escaping TextBuilder.CheckboxDrawingCallback,
+    ) -> MarkLineDrawingAction {
+        let mark: MarkLineDrawingAction.Mark = if item.ordered {
+            .numbered(item.index)
+        } else if item.isTask {
+            .checkbox(isDone: item.isDone)
+        } else {
+            .bullet(depth: item.depth)
+        }
+        return MarkLineDrawingAction(mark: mark, theme: theme, owner: drawingOwner) { context, line, lineOrigin in
+            switch mark {
+            case let .numbered(index):
+                numbered(context, line, lineOrigin, index)
+            case let .checkbox(isDone):
+                checkbox(context, line, lineOrigin, isDone)
+            case let .bullet(depth):
+                bullet(context, line, lineOrigin, depth)
+            case .thematicBreak:
+                assertionFailure()
+            }
+        }
+    }
+
     private enum List {
         case bulleted([RawListItem])
         case numbered(Int, [RawListItem])
@@ -175,7 +200,6 @@ extension ListProcessor {
                         let isTask = item.isDone != nil
                         let isDone = item.isDone ?? false
                         result.append(.init(depth: currentDepth, ordered: isOrdered, index: index, isTask: isTask, isDone: isDone, showsMarker: isFirstParagraph, paragraph: contents))
-                        if isFirstParagraph { index += 1 }
                         isFirstParagraph = false
                     case let .bulletedList(_, sublist):
                         result.append(contentsOf: flatList(.bulleted(sublist), currentDepth: currentDepth + 1))
@@ -184,9 +208,14 @@ extension ListProcessor {
                     case let .taskList(_, sublist):
                         result.append(contentsOf: flatList(.task(sublist), currentDepth: currentDepth + 1))
                     default:
-                        print("WARNING: Unhandled list item: \(child)")
+                        // The parser lifts every other block out of a list
+                        // item, so only blocks handed in directly reach here.
+                        break
                     }
                 }
+                // Every item takes a number, including one that opens with a
+                // nested list or is empty, so the items after it keep theirs.
+                index += 1
             }
         }
 

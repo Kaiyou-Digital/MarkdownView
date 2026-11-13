@@ -14,28 +14,48 @@ final class MarkdownViewCoordinator {
     static let throttleInterval: TimeInterval = 1 / 20
 
     var lastText: String = ""
+    var lastIsStreaming = false
     var lastContent: MarkdownContent?
     var lastTheme: MarkdownTheme = .default
+    /// The text `lastParseResult` was parsed from: `lastText`, with its
+    /// unfinished end closed while streaming.
+    var lastParsedText: String = ""
     var lastParseResult: MarkdownParser.ParseResult?
 
     var width: CGFloat = 0
 
     private var pendingText: String?
     private var pendingTheme: MarkdownTheme?
+    private var pendingIsStreaming: Bool?
     private var lastApplyDate: Date = .distantPast
     private var scheduledTask: Task<Void, Never>?
 
-    var targetText: String { pendingText ?? lastText }
-    var targetTheme: MarkdownTheme { pendingTheme ?? lastTheme }
+    var targetText: String {
+        pendingText ?? lastText
+    }
 
-    func setTextThrottled(_ text: String, theme: MarkdownTheme, on view: MarkdownTextView) {
+    var targetTheme: MarkdownTheme {
+        pendingTheme ?? lastTheme
+    }
+
+    var targetIsStreaming: Bool {
+        pendingIsStreaming ?? lastIsStreaming
+    }
+
+    func setTextThrottled(
+        _ text: String,
+        theme: MarkdownTheme,
+        isStreaming: Bool = false,
+        on view: MarkdownTextView,
+    ) {
         let now = Date()
         if scheduledTask == nil, now.timeIntervalSince(lastApplyDate) >= Self.throttleInterval {
-            apply(text: text, theme: theme, to: view)
+            apply(text: text, theme: theme, isStreaming: isStreaming, to: view)
             return
         }
         pendingText = text
         pendingTheme = theme
+        pendingIsStreaming = isStreaming
         guard scheduledTask == nil else { return }
         let delay = max(0, lastApplyDate.addingTimeInterval(Self.throttleInterval).timeIntervalSince(now))
         scheduledTask = Task { @MainActor [weak self, weak view] in
@@ -43,7 +63,12 @@ final class MarkdownViewCoordinator {
             guard let self, !Task.isCancelled else { return }
             scheduledTask = nil
             guard let view, let text = pendingText else { return }
-            apply(text: text, theme: pendingTheme ?? lastTheme, to: view)
+            apply(
+                text: text,
+                theme: pendingTheme ?? lastTheme,
+                isStreaming: pendingIsStreaming ?? lastIsStreaming,
+                to: view,
+            )
         }
     }
 
@@ -52,6 +77,7 @@ final class MarkdownViewCoordinator {
         scheduledTask = nil
         pendingText = nil
         pendingTheme = nil
+        pendingIsStreaming = nil
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, for view: MarkdownTextView) -> CGSize? {
@@ -87,23 +113,40 @@ final class MarkdownViewCoordinator {
         return ceil(size.height)
     }
 
-    private func apply(text: String, theme: MarkdownTheme, to view: MarkdownTextView) {
+    private func apply(text: String, theme: MarkdownTheme, isStreaming: Bool, to view: MarkdownTextView) {
         cancelScheduledApply()
-        let result: MarkdownParser.ParseResult
-        if lastText == text, let cached = lastParseResult {
-            result = cached
-        } else {
-            result = MarkdownParser().parse(text)
-        }
-        let content = MarkdownContent(parserResult: result, theme: theme)
+        // While streaming, the unfinished end is closed before parsing. The
+        // cache is keyed on the text that is parsed, so a stream that ends
+        // without new text parses again without the repair — unless the
+        // repair had nothing to do, and the view already shows the result.
+        let parsedText = isStreaming
+            ? MarkdownParser.StreamingTail(closing: text).applied(to: text)
+            : text
+        let cached = lastParsedText == parsedText ? lastParseResult : nil
         lastText = text
+        lastIsStreaming = isStreaming
+        if cached != nil, lastContent == nil, theme == lastTheme, lastApplyDate != .distantPast {
+            return
+        }
+        let result = cached ?? MarkdownParser().parse(parsedText)
+        let content = MarkdownContent(parserResult: result, theme: theme)
+        lastParsedText = parsedText
         lastParseResult = result
         lastContent = nil
-        view.setContentImmediately(content, theme: theme)
         // A deferred (throttled) apply happens outside a SwiftUI update
-        // cycle; invalidating the intrinsic size is what prompts SwiftUI to
-        // re-query sizeThatFits(_:) for the new content.
-        view.invalidateIntrinsicContentSize()
+        // cycle; the view invalidating its intrinsic size on every rebuild is
+        // what prompts SwiftUI to re-query sizeThatFits(_:).
+        if let streamView = view as? MarkdownStreamView,
+           streamView.isStreaming,
+           lastApplyDate != .distantPast,
+           theme == lastTheme
+        {
+            // More of a stream already on screen: the view paces it and fades
+            // the new text in.
+            streamView.setContent(content)
+        } else {
+            view.setContentImmediately(content, theme: theme)
+        }
         lastTheme = theme
         lastApplyDate = Date()
     }

@@ -17,8 +17,8 @@ import Testing
 
 struct MarkdownViewLayoutTests {
     @MainActor
-    @Test("Table cells are reused across reconfiguration")
-    func tableCellsAreReusedAcrossReconfiguration() {
+    @Test
+    func `Table cells are reused across reconfiguration`() {
         let manager = TableViewCellManager()
         let container = TestContainerView(frame: .init(x: 0, y: 0, width: 400, height: 400))
 
@@ -27,8 +27,8 @@ struct MarkdownViewLayoutTests {
                 [makeText("A"), makeText("B")],
                 [makeText("C"), makeText("D")],
             ],
-            in: container,
-            metrics: testTableMetrics(maximumTextWidth: 180)
+            in: [container, container],
+            metrics: testTableMetrics(maximumTextWidth: 180),
         )
 
         let originalIdentifiers = manager.cells.map(ObjectIdentifier.init)
@@ -38,8 +38,8 @@ struct MarkdownViewLayoutTests {
                 [makeText("AA"), makeText("BB")],
                 [makeText("CC"), makeText("DD")],
             ],
-            in: container,
-            metrics: testTableMetrics(maximumTextWidth: 180)
+            in: [container, container],
+            metrics: testTableMetrics(maximumTextWidth: 180),
         )
 
         #expect(manager.cells.count == 4)
@@ -47,8 +47,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Table cells are trimmed when content shrinks")
-    func tableCellsAreTrimmedWhenContentShrinks() {
+    @Test
+    func `Table cells are trimmed when content shrinks`() {
         let manager = TableViewCellManager()
         let container = TestContainerView(frame: .init(x: 0, y: 0, width: 400, height: 400))
 
@@ -57,14 +57,14 @@ struct MarkdownViewLayoutTests {
                 [makeText("A"), makeText("B")],
                 [makeText("C"), makeText("D")],
             ],
-            in: container,
-            metrics: testTableMetrics(maximumTextWidth: 180)
+            in: [container, container],
+            metrics: testTableMetrics(maximumTextWidth: 180),
         )
 
         manager.configureCells(
             for: [[makeText("Only one")]],
-            in: container,
-            metrics: testTableMetrics(maximumTextWidth: 180)
+            in: [container, container],
+            metrics: testTableMetrics(maximumTextWidth: 180),
         )
 
         #expect(manager.cells.count == 1)
@@ -72,15 +72,15 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Reused table cells refresh their width constraint")
-    func reusedTableCellsRefreshTheirWidthConstraint() throws {
+    @Test
+    func `Reused table cells refresh their width constraint`() throws {
         let manager = TableViewCellManager()
         let container = TestContainerView(frame: .init(x: 0, y: 0, width: 400, height: 400))
 
         manager.configureCells(
             for: [[makeText("Wrapped content that needs width")]],
-            in: container,
-            metrics: testTableMetrics(maximumTextWidth: 220)
+            in: [container, container],
+            metrics: testTableMetrics(maximumTextWidth: 220),
         )
 
         let cell = try #require(manager.cells.first)
@@ -88,8 +88,8 @@ struct MarkdownViewLayoutTests {
 
         manager.configureCells(
             for: [[makeText("Wrapped content that needs width")]],
-            in: container,
-            metrics: testTableMetrics(maximumTextWidth: 120)
+            in: [container, container],
+            metrics: testTableMetrics(maximumTextWidth: 120),
         )
 
         let reusedCell = try #require(manager.cells.first)
@@ -98,8 +98,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Table widths and heights follow row and column maxima")
-    func tableWidthsAndHeightsFollowRowAndColumnMaxima() {
+    @Test
+    func `Table widths and heights follow row and column maxima`() {
         let manager = TableViewCellManager()
         let container = TestContainerView(frame: .init(x: 0, y: 0, width: 400, height: 400))
 
@@ -108,8 +108,8 @@ struct MarkdownViewLayoutTests {
                 [makeText("Short"), makeText("A much longer value")],
                 [makeText("This cell is tallest\nbecause it wraps"), makeText("Mid")],
             ],
-            in: container,
-            metrics: testTableMetrics(maximumTextWidth: 140)
+            in: [container, container],
+            metrics: testTableMetrics(maximumTextWidth: 140),
         )
 
         let cellSizes = manager.cellSizes
@@ -127,8 +127,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Table columns use native point width bounds and readable row heights")
-    func tableColumnsUseNativePointBounds() throws {
+    @Test
+    func `Table columns use native point width bounds and readable row heights`() throws {
         let manager = TableViewCellManager()
         let container = TestContainerView(frame: .init(x: 0, y: 0, width: 390, height: 400))
         let longToken = String(repeating: "unbroken", count: 80)
@@ -138,8 +138,8 @@ struct MarkdownViewLayoutTests {
                 [makeText("A"), makeText(longToken)],
                 [makeText(""), makeText("Value")],
             ],
-            in: container,
-            metrics: .compact
+            in: [container, container],
+            metrics: .compact,
         )
 
         #expect(manager.widths.allSatisfy { (88 ... 280).contains($0) })
@@ -150,16 +150,16 @@ struct MarkdownViewLayoutTests {
             manager.cells[1].attributedText.attribute(
                 .paragraphStyle,
                 at: 0,
-                effectiveRange: nil
-            ) as? NSParagraphStyle
+                effectiveRange: nil,
+            ) as? NSParagraphStyle,
         )
         #expect(paragraphStyle.lineBreakMode == .byWordWrapping)
         #expect(manager.cells[1].intrinsicContentSize.width <= 262)
     }
 
     @MainActor
-    @Test("One to three short columns fill the table viewport")
-    func shortTablesFillViewport() throws {
+    @Test
+    func `One to three short columns fill the table viewport`() throws {
         for columnCount in 1 ... 3 {
             let tableView = TableView(frame: .init(x: 0, y: 0, width: 390, height: 120))
             let row = (0 ..< columnCount).map { makeText("C\($0)") }
@@ -167,27 +167,25 @@ struct MarkdownViewLayoutTests {
             layout(view: tableView)
 
             let scrollView = try #require(extractScrollView(from: tableView))
-            let gridView = try #require(extractGridView(from: scrollView))
-            #expect(abs(gridView.frame.width - tableView.bounds.width) <= 0.5)
+            #expect(abs(columnsSize(of: scrollView).width - scrollView.frame.width) <= 0.5)
         }
     }
 
     @MainActor
-    @Test("Five short columns remain horizontally scrollable")
-    func wideTablesRemainHorizontallyScrollable() throws {
+    @Test
+    func `Five short columns remain horizontally scrollable`() throws {
         let tableView = TableView(frame: .init(x: 0, y: 0, width: 320, height: 120))
         let row = (0 ..< 5).map { makeText("C\($0)") }
         tableView.setContents([row, row])
         layout(view: tableView)
 
         let scrollView = try #require(extractScrollView(from: tableView))
-        let gridView = try #require(extractGridView(from: scrollView))
-        #expect(gridView.frame.width > tableView.bounds.width)
+        #expect(columnsSize(of: scrollView).width > scrollView.frame.width)
     }
 
     @MainActor
-    @Test("Table cells are vertically centered within each row")
-    func tableCellsAreVerticallyCentered() throws {
+    @Test
+    func `Table cells are vertically centered within each row`() throws {
         let tableView = TableView(frame: .init(x: 0, y: 0, width: 320, height: 160))
         tableView.setContents([
             [makeText("Short"), makeText("First line\nSecond line")],
@@ -202,8 +200,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Default table theme preserves rounded striped appearance")
-    func defaultTableThemePreservesAppearance() {
+    @Test
+    func `Default table theme preserves rounded striped appearance`() {
         let table = MarkdownTheme.default.table
 
         #expect(table.cornerRadius == 8)
@@ -217,8 +215,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Markdown column alignment reaches table headers and cells")
-    func markdownColumnAlignmentReachesTableCells() throws {
+    @Test
+    func `Markdown column alignment reaches table headers and cells`() throws {
         let view = MarkdownTextView()
         view.frame = .init(x: 0, y: 0, width: 390, height: 240)
         view.setContentImmediately(preprocessedContent(for: """
@@ -242,18 +240,20 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Table content normalizes HTML line breaks")
-    func tableContentNormalizesHTMLLineBreaks() {
+    @Test
+    func `Table view shows cell text exactly as rendered`() {
+        // A `<br>` tag already reaches the table as a line break; text that
+        // still reads `<br>` was written as code or escaped, and stays so.
         let tableView = TableView(frame: .init(x: 0, y: 0, width: 240, height: 120))
-        tableView.setContents([[makeText("Line 1<br>Line 2")]])
+        tableView.setContents([[makeText("Line 1<br>Line 2"), makeText("Line 1\nLine 2")]])
 
-        #expect(tableView.contents[0][0].string == "Line 1\nLine 2")
-        #expect(tableView.attributedStringRepresentation().string.contains("Line 1\nLine 2"))
+        #expect(tableView.contents[0][0].string == "Line 1<br>Line 2")
+        #expect(tableView.contents[0][1].string == "Line 1\nLine 2")
     }
 
     @MainActor
-    @Test("Table viewport can shrink below its scrollable content width")
-    func tableViewportCanShrinkBelowContentWidth() throws {
+    @Test
+    func `Table viewport can shrink below its scrollable content width`() throws {
         let tableView = TableView(frame: .init(x: 0, y: 0, width: 140, height: 90))
         tableView.setTheme(.default)
         tableView.setContents([
@@ -263,23 +263,23 @@ struct MarkdownViewLayoutTests {
         layout(view: tableView)
 
         let scrollView = try #require(extractScrollView(from: tableView))
-        let gridView = try #require(extractGridView(from: scrollView))
 
         #expect(tableView.intrinsicContentSize.width == TestContainerView.noIntrinsicMetric)
-        #expect(gridView.frame.width > tableView.bounds.width)
-        #expect(gridView.frame.height == tableView.intrinsicContentHeight)
+        #expect(columnsSize(of: scrollView).width > scrollView.frame.width)
+        #expect(columnsSize(of: scrollView).height == scrollView.frame.height)
+        #expect(scrollView.frame.maxY <= tableView.intrinsicContentHeight)
 
         tableView.frame.size.width = 96
         layout(view: tableView)
 
         #expect(tableView.bounds.width == 96)
-        #expect(gridView.frame.width > tableView.bounds.width)
+        #expect(columnsSize(of: scrollView).width > scrollView.frame.width)
         #expect(tableView.intrinsicContentSize.width == TestContainerView.noIntrinsicMetric)
     }
 
     @MainActor
-    @Test("Plain table surface routes selection to table cell")
-    func plainTableSurfaceRoutesSelectionToTableCell() throws {
+    @Test
+    func `Plain table surface routes selection to table cell`() throws {
         let tableView = TableView(frame: .init(x: 0, y: 0, width: 260, height: 120))
         tableView.setContents([
             [makeText("Plain header"), makeText("Value")],
@@ -290,15 +290,15 @@ struct MarkdownViewLayoutTests {
         let scrollView = try #require(extractScrollView(from: tableView))
         let cell = try #require(extractTableCells(from: scrollView).first)
         let target = try #require(tableView.interactionTarget(
-            at: cell.convert(CGPoint(x: cell.bounds.midX, y: cell.bounds.midY), to: tableView)
+            at: cell.convert(CGPoint(x: cell.bounds.midX, y: cell.bounds.midY), to: tableView),
         ))
 
         #expect(target.isDescendant(of: tableView))
     }
 
     @MainActor
-    @Test("Scrollable table surface remains interactive")
-    func scrollableTableSurfaceRemainsInteractive() throws {
+    @Test
+    func `Scrollable table surface remains interactive`() throws {
         let tableView = TableView(frame: .init(x: 0, y: 0, width: 80, height: 120))
         tableView.setContents([
             [makeText("A very long header"), makeText("Another very long header")],
@@ -310,14 +310,14 @@ struct MarkdownViewLayoutTests {
         let cell = try #require(extractTableCells(from: scrollView).first)
         let point = cell.convert(
             CGPoint(x: cell.bounds.midX, y: cell.bounds.midY),
-            to: tableView
+            to: tableView,
         )
         #expect(tableView.interactionTarget(at: point) != nil)
     }
 
     @MainActor
-    @Test("Table forwards cell selection events")
-    func tableForwardsCellSelectionEvents() throws {
+    @Test
+    func `Table forwards cell selection events`() throws {
         let tableView = TableView(frame: .init(x: 0, y: 0, width: 260, height: 120))
         let probe = TextSelectionProbe()
         tableView.textSelectionDelegate = probe
@@ -331,7 +331,7 @@ struct MarkdownViewLayoutTests {
         let cell = try #require(extractTableCells(from: scrollView).first)
         let point = cell.convert(
             CGPoint(x: cell.bounds.midX, y: cell.bounds.midY),
-            to: tableView
+            to: tableView,
         )
         let target = try #require(tableView.interactionTarget(at: point) as? TextLabelView)
         let selection = NSRange(location: 0, length: 4)
@@ -347,8 +347,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Plain code surface routes selection to code text")
-    func plainCodeSurfaceRoutesSelectionToCodeText() throws {
+    @Test
+    func `Plain code surface routes selection to code text`() throws {
         let codeView = CodeView(frame: .init(x: 0, y: 0, width: 260, height: 160))
         codeView.theme = .default
         codeView.content = "let value = 1"
@@ -356,7 +356,7 @@ struct MarkdownViewLayoutTests {
 
         let probe = codeView.convert(
             CGPoint(x: codeView.textView.bounds.midX, y: codeView.textView.bounds.midY),
-            from: codeView.textView
+            from: codeView.textView,
         )
         let target = try #require(codeView.interactionTarget(at: probe))
 
@@ -364,8 +364,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Code toolbar remains interactive")
-    func codeToolbarRemainsInteractive() {
+    @Test
+    func `Code toolbar remains interactive`() {
         let codeView = CodeView(frame: .init(x: 0, y: 0, width: 260, height: 160))
         codeView.theme = .default
         codeView.content = "let value = 1"
@@ -376,8 +376,8 @@ struct MarkdownViewLayoutTests {
 
     #if canImport(AppKit) && !targetEnvironment(macCatalyst)
         @MainActor
-        @Test("Code forwards vertical scroll events to its responder chain")
-        func codeForwardsVerticalScrollEvents() throws {
+        @Test
+        func `Code forwards vertical scroll events to its responder chain`() throws {
             let container = ScrollWheelProbe(frame: .init(x: 0, y: 0, width: 260, height: 160))
             let codeView = CodeView(frame: container.bounds)
             codeView.theme = .default
@@ -385,15 +385,15 @@ struct MarkdownViewLayoutTests {
             container.addSubview(codeView)
             layout(view: codeView)
 
-            codeView.scrollView.scrollWheel(with: try makeScrollWheelEvent(deltaY: 1))
+            try codeView.scrollView.scrollWheel(with: makeScrollWheelEvent(deltaY: 1))
 
             #expect(container.eventCount == 1)
         }
     #endif
 
     @MainActor
-    @Test("MarkdownTextView height grows as width shrinks")
-    func markdownTextViewHeightGrowsAsWidthShrinks() {
+    @Test
+    func `MarkdownTextView height grows as width shrinks`() {
         let view = MarkdownTextView()
         view.frame = .init(x: 0, y: 0, width: 320, height: 1)
         view.setContentImmediately(preprocessedContent(for: """
@@ -410,13 +410,13 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("MarkdownView coordinator sizes representable to full content height")
-    func markdownViewCoordinatorSizesRepresentableToFullContentHeight() async throws {
+    @Test
+    func `MarkdownView coordinator sizes representable to full content height`() throws {
         let view = MarkdownTextView()
         view.frame = .init(x: 0, y: 0, width: 388, height: 925)
         let filler = Array(
             repeating: "This paragraph keeps the table below the first viewport so sizing must grow beyond the initial view height.",
-            count: 18
+            count: 18,
         ).joined(separator: "\n\n")
 
         view.setContentImmediately(preprocessedContent(for: """
@@ -436,7 +436,7 @@ struct MarkdownViewLayoutTests {
 
         let size = try #require(coordinator.sizeThatFits(
             ProposedViewSize(width: 388, height: nil),
-            for: view
+            for: view,
         ))
 
         #expect(size.width == 388)
@@ -450,8 +450,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("MarkdownTextView reuses table context views")
-    func markdownTextViewReusesTableContextViews() throws {
+    @Test
+    func `MarkdownTextView reuses table context views`() throws {
         let view = MarkdownTextView()
 
         view.setContentImmediately(preprocessedContent(for: """
@@ -472,8 +472,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("MarkdownTextView connects table selection delegate")
-    func markdownTextViewConnectsTableSelectionDelegate() throws {
+    @Test
+    func `MarkdownTextView connects table selection delegate`() throws {
         let view = MarkdownTextView()
 
         view.setContentImmediately(preprocessedContent(for: """
@@ -488,8 +488,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("MarkdownTextView lays out table context views without drawing")
-    func markdownTextViewLaysOutTableContextViewsWithoutDrawing() throws {
+    @Test
+    func `MarkdownTextView lays out table context views without drawing`() throws {
         let view = MarkdownTextView()
         view.frame = .init(x: 0, y: 0, width: 320, height: 400)
 
@@ -508,17 +508,17 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Mixed CJK and RTL text gets stable CoreText language attributes")
-    func mixedCJKAndRTLTextGetsStableCoreTextLanguageAttributes() {
+    @Test
+    func `Mixed CJK and RTL text gets stable CoreText language attributes`() {
         let context = MarkdownContent(
             blocks: [],
             rendered: [:],
             highlightMaps: [:],
-            locale: Locale(identifier: "zh-Hans")
+            locale: Locale(identifier: "zh-Hans"),
         )
         let rendered = MarkdownInlineNode
             .text("中文段落 日本語かな العربية")
-            .render(theme: .default, context: context, viewProvider: .init())
+            .render(theme: .default, context: context)
 
         // Simplified Chinese and Japanese carry their locale in the resolved
         // font rather than in the attribute; Arabic still shapes by language.
@@ -528,30 +528,30 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("Preprocessed content preserves explicit locale")
-    func preprocessedContentPreservesExplicitLocale() {
+    @Test
+    func `Preprocessed content preserves explicit locale`() {
         let content = MarkdownContent(
             parserResult: MarkdownParser().parse("中文と日本語かな"),
             theme: .default,
-            locale: Locale(identifier: "ja")
+            locale: Locale(identifier: "ja"),
         )
 
         #expect(content.locale.identifier == "ja")
     }
 
     @MainActor
-    @Test("Multilingual markdown fixture parses preprocesses and renders")
-    func multilingualMarkdownFixtureParsesPreprocessesAndRenders() throws {
+    @Test
+    func `Multilingual markdown fixture parses preprocesses and renders`() throws {
         let markdownURL = try #require(Bundle.module.url(
             forResource: "MultilingualStress",
-            withExtension: "md"
+            withExtension: "md",
         ))
         let markdown = try String(contentsOf: markdownURL, encoding: .utf8)
         let parserResult = MarkdownParser().parse(markdown)
         let content = MarkdownContent(
             parserResult: parserResult,
             theme: .default,
-            locale: Locale(identifier: "zh-Hans")
+            locale: Locale(identifier: "zh-Hans"),
         )
         let view = MarkdownTextView()
 
@@ -559,8 +559,20 @@ struct MarkdownViewLayoutTests {
         let size = view.boundingSize(for: 320)
 
         #expect(content.blocks.count >= 5)
-        #expect(content.blocks.contains { if case .table = $0 { true } else { false } })
-        #expect(content.blocks.contains { if case .codeBlock = $0 { true } else { false } })
+        #expect(content.blocks.contains {
+            if case .table = $0 {
+                true
+            } else {
+                false
+            }
+        })
+        #expect(content.blocks.contains {
+            if case .codeBlock = $0 {
+                true
+            } else {
+                false
+            }
+        })
         #expect(view.contextViews.contains { $0 is TableView })
         #expect(view.contextViews.contains { $0 is CodeView })
         #expect(size.width > 0)
@@ -568,8 +580,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("MarkdownTextView reuses code context views")
-    func markdownTextViewReusesCodeContextViews() throws {
+    @Test
+    func `MarkdownTextView reuses code context views`() throws {
         let view = MarkdownTextView()
 
         view.setContentImmediately(preprocessedContent(for: """
@@ -590,8 +602,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("MarkdownTextView lays out code context views without drawing")
-    func markdownTextViewLaysOutCodeContextViewsWithoutDrawing() throws {
+    @Test
+    func `MarkdownTextView lays out code context views without drawing`() throws {
         let view = MarkdownTextView()
         view.frame = .init(x: 0, y: 0, width: 320, height: 400)
 
@@ -610,8 +622,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("MarkdownTextView routes table hits to nested table cell")
-    func markdownTextViewRoutesTableHitsToNestedTableCell() throws {
+    @Test
+    func `MarkdownTextView routes table hits to nested table cell`() throws {
         let view = MarkdownTextView()
         view.frame = .init(x: 0, y: 0, width: 320, height: 400)
         view.setContentImmediately(preprocessedContent(for: """
@@ -630,7 +642,7 @@ struct MarkdownViewLayoutTests {
         let cell = try #require(extractTableCells(from: scrollView).first)
         let point = cell.convert(
             CGPoint(x: cell.bounds.midX, y: cell.bounds.midY),
-            to: tableView
+            to: tableView,
         )
         let overlayTarget = tableView.interactionTarget(at: point)
         let target = try #require(overlayTarget)
@@ -639,8 +651,8 @@ struct MarkdownViewLayoutTests {
     }
 
     @MainActor
-    @Test("MarkdownTextView routes code hits to nested code text")
-    func markdownTextViewRoutesCodeHitsToNestedCodeText() throws {
+    @Test
+    func `MarkdownTextView routes code hits to nested code text`() throws {
         let view = MarkdownTextView()
         view.frame = .init(x: 0, y: 0, width: 320, height: 400)
         view.setContentImmediately(preprocessedContent(for: """
@@ -657,7 +669,7 @@ struct MarkdownViewLayoutTests {
         layout(view: codeView)
         let probe = view.convert(
             CGPoint(x: codeView.textView.bounds.midX, y: codeView.textView.bounds.midY),
-            from: codeView.textView
+            from: codeView.textView,
         )
         let overlayTarget = codeView.interactionTarget(at: codeView.convert(probe, from: view))
         let target = try #require(overlayTarget)
@@ -672,7 +684,7 @@ private func makeText(_ string: String) -> NSAttributedString {
         string: string,
         attributes: [
             .font: MarkdownTheme.default.fonts.body,
-        ]
+        ],
     )
 }
 
@@ -682,7 +694,7 @@ private func testTableMetrics(maximumTextWidth: CGFloat) -> TableLayoutMetrics {
         maximumColumnWidth: maximumTextWidth + 20,
         horizontalCellPadding: 10,
         verticalCellPadding: 10,
-        minimumRowHeight: 0
+        minimumRowHeight: 0,
     )
 }
 
@@ -708,7 +720,7 @@ private final class TextSelectionProbe: TextLabelViewDelegate {
 private func preprocessedContent(for markdown: String) -> MarkdownContent {
     MarkdownContent(
         parserResult: MarkdownParser().parse(markdown),
-        theme: .default
+        theme: .default,
     )
 }
 
@@ -746,22 +758,26 @@ private func extractScrollView(from tableView: TableView) -> TestScrollView? {
     tableView.subviews.first { $0 is TestScrollView } as? TestScrollView
 }
 
+/// The size of the columns the scroll view scrolls.
 @MainActor
-private func extractGridView(from scrollView: TestScrollView) -> GridView? {
+private func columnsSize(of scrollView: TestScrollView) -> CGSize {
     #if canImport(UIKit)
-        scrollView.subviews.first { $0 is GridView } as? GridView
+        scrollView.contentSize
     #elseif canImport(AppKit)
-        scrollView.documentView as? GridView
+        scrollView.documentView?.frame.size ?? .zero
     #endif
 }
 
+/// The cells in the scrolling content, row by row, taken from inside their
+/// columns' views.
 @MainActor
 private func extractTableCells(from scrollView: TestScrollView) -> [TextLabelView] {
     #if canImport(UIKit)
-        scrollView.subviews.compactMap { $0 as? TextLabelView }
+        let columns = scrollView.subviews
     #elseif canImport(AppKit)
-        scrollView.documentView?.subviews.compactMap { $0 as? TextLabelView } ?? []
+        let columns = scrollView.documentView?.subviews ?? []
     #endif
+    return rowByRow(columns.map { $0.subviews.compactMap { $0 as? TextLabelView } })
 }
 
 @MainActor
@@ -770,7 +786,7 @@ private func paragraphAlignment(in cell: TextLabelView) -> NSTextAlignment? {
     return (cell.attributedText.attribute(
         .paragraphStyle,
         at: 0,
-        effectiveRange: nil
+        effectiveRange: nil,
     ) as? NSParagraphStyle)?.alignment
 }
 
@@ -792,7 +808,7 @@ private func paragraphAlignment(in cell: TextLabelView) -> NSTextAlignment? {
             wheelCount: 1,
             wheel1: deltaY,
             wheel2: 0,
-            wheel3: 0
+            wheel3: 0,
         ))
         return try #require(NSEvent(cgEvent: cgEvent))
     }

@@ -11,20 +11,22 @@ import Testing
             var queue: [NSView] = [view]
             while !queue.isEmpty {
                 let view = queue.removeFirst()
-                if let match = view as? MarkdownTextView { return match }
+                if let match = view as? MarkdownTextView {
+                    return match
+                }
                 queue.append(contentsOf: view.subviews)
             }
             return nil
         }
 
         @MainActor
-        @Test("Deferred throttled apply still grows the hosted height")
-        func deferredApplyGrowsHostedHeight() async throws {
+        @Test
+        func `Deferred throttled apply still grows the hosted height`() async throws {
             let window = NSWindow(
                 contentRect: .init(x: 0, y: 0, width: 400, height: 600),
                 styleMask: [.titled, .resizable],
                 backing: .buffered,
-                defer: true
+                defer: true,
             )
             let host = NSHostingView(rootView: ScrollView { MarkdownView("short") })
             window.contentView = host
@@ -36,7 +38,7 @@ import Testing
 
             let longText = Array(
                 repeating: "A paragraph long enough to wrap and add real height.",
-                count: 12
+                count: 12,
             ).joined(separator: "\n\n")
 
             // Two updates inside one throttle window: the first applies

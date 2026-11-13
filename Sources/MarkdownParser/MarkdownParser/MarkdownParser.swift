@@ -48,7 +48,11 @@ public final class MarkdownParser: Sendable {
                 return cmark_parser_finish(parser)
             }
         }
-        defer { if let nodes { cmark_node_free(nodes) } }
+        defer {
+            if let nodes {
+                cmark_node_free(nodes)
+            }
+        }
         var blocks = dumpBlocks(root: nodes, mathContext: math)
         blocks = finalizeMathBlocks(blocks, mathContext: math)
         return .init(document: blocks, mathContext: math.contents)
@@ -101,18 +105,20 @@ private func getIndex(forLine targetLine: Int, column targetColumn: Int, columnI
     var currentLine = 1
     var lineStartIndex = text.startIndex
 
+    // "\r\n" is a single Character, so search bytes: cmark counts lines by LF.
+    let newline = UInt8(ascii: "\n")
     while currentLine < targetLine {
-        guard let newlineIndex = text[lineStartIndex...].firstIndex(of: "\n") else {
+        guard let newlineIndex = text.utf8[lineStartIndex...].firstIndex(of: newline) else {
             return nil
         }
-        lineStartIndex = text.index(after: newlineIndex)
+        lineStartIndex = text.utf8.index(after: newlineIndex)
         currentLine += 1
     }
 
     // cmark 使用 1-based 列号，需要减1转换为 0-based
     let targetOffset = columnIsInclusiveEnd ? targetColumn : targetColumn - 1
 
-    let lineEndIndex: String.Index = if let newlineIndex = text[lineStartIndex...].firstIndex(of: "\n") {
+    let lineEndIndex: String.Index = if let newlineIndex = text.utf8[lineStartIndex...].firstIndex(of: newline) {
         newlineIndex
     } else {
         text.endIndex

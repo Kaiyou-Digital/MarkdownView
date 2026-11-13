@@ -24,7 +24,7 @@ struct WatchTextBuilder {
         guard result.length > 0 else {
             return NSAttributedString(
                 string: " ",
-                attributes: baseAttributes(font: theme.bodyFont, theme: theme)
+                attributes: baseAttributes(font: theme.bodyFont, theme: theme),
             )
         }
         return result
@@ -40,7 +40,9 @@ private extension WatchTextBuilder {
 
     enum ListMarker {
         case bullet(depth: Int)
-        case numbered(Int)
+        /// `columnWidth` is the widest marker in the item's list, so every
+        /// item's text starts in the same column across 9. and 10.
+        case numbered(Int, columnWidth: CGFloat)
         case task(isCompleted: Bool)
     }
 
@@ -50,7 +52,7 @@ private extension WatchTextBuilder {
         _ blocks: [MarkdownBlockNode],
         to result: NSMutableAttributedString,
         context: RenderContext,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) {
         for block in blocks {
             appendBlock(block, to: result, context: context, theme: theme)
@@ -61,7 +63,7 @@ private extension WatchTextBuilder {
         _ block: MarkdownBlockNode,
         to result: NSMutableAttributedString,
         context: RenderContext,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) {
         switch block {
         case let .paragraph(content):
@@ -71,8 +73,8 @@ private extension WatchTextBuilder {
                     font: theme.bodyFont,
                     paragraphSpacing: theme.blockSpacing,
                     context: context,
-                    theme: theme
-                )
+                    theme: theme,
+                ),
             )
 
         case let .heading(level, content):
@@ -83,8 +85,8 @@ private extension WatchTextBuilder {
                     font: font,
                     paragraphSpacing: theme.blockSpacing * 1.5,
                     context: context,
-                    theme: theme
-                )
+                    theme: theme,
+                ),
             )
 
         case let .codeBlock(_, code):
@@ -99,7 +101,7 @@ private extension WatchTextBuilder {
                 to: result,
                 isTight: isTight,
                 context: context,
-                theme: theme
+                theme: theme,
             )
 
         case let .numberedList(isTight, start, items):
@@ -108,7 +110,7 @@ private extension WatchTextBuilder {
                 to: result,
                 isTight: isTight,
                 context: context,
-                theme: theme
+                theme: theme,
             )
 
         case let .taskList(isTight, items):
@@ -117,7 +119,7 @@ private extension WatchTextBuilder {
                 to: result,
                 isTight: isTight,
                 context: context,
-                theme: theme
+                theme: theme,
             )
 
         case let .table(columnAlignments, rows):
@@ -126,8 +128,8 @@ private extension WatchTextBuilder {
                     rows: rows,
                     columnAlignments: columnAlignments,
                     context: context,
-                    theme: theme
-                )
+                    theme: theme,
+                ),
             )
 
         case .thematicBreak:
@@ -141,7 +143,7 @@ private extension WatchTextBuilder {
         paragraphSpacing: CGFloat,
         marker: ListMarker? = nil,
         context: RenderContext,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) -> NSAttributedString {
         let result = NSMutableAttributedString()
         let prefixLength = result.length
@@ -155,8 +157,8 @@ private extension WatchTextBuilder {
             result.append(
                 NSAttributedString(
                     string: " ",
-                    attributes: baseAttributes(font: font, theme: theme)
-                )
+                    attributes: baseAttributes(font: font, theme: theme),
+                ),
             )
         } else {
             result.append(content)
@@ -165,7 +167,7 @@ private extension WatchTextBuilder {
         let bodyRange = NSRange(location: bodyStart, length: result.length - bodyStart)
         if let action = makeCombinedAction(
             nil,
-            nil
+            nil,
         ) {
             result.addAttribute(.litextLineDrawingAction, value: action, range: bodyRange)
         }
@@ -182,10 +184,10 @@ private extension WatchTextBuilder {
                         indent: context.leadingInset + markerIndent(for: marker, font: font, theme: theme),
                         in: drawContext,
                         line: line,
-                        lineOrigin: lineOrigin
+                        lineOrigin: lineOrigin,
                     )
                 },
-                range: markerRange
+                range: markerRange,
             )
         }
 
@@ -197,7 +199,7 @@ private extension WatchTextBuilder {
             lineSpacing: 4,
             paragraphSpacing: paragraphSpacing,
             extraInsets: .zero,
-            theme: theme
+            theme: theme,
         )
 
         if !result.string.hasSuffix("\n") {
@@ -209,13 +211,13 @@ private extension WatchTextBuilder {
     func renderCodeBlock(
         _ code: String,
         context: RenderContext,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) -> NSAttributedString {
         let rendered = WatchCodeBlockRenderer.render(
             code: code,
             theme: theme,
             maxWidth: max(1, maxWidth - context.leadingInset),
-            scale: scale
+            scale: scale,
         )
 
         guard let image = rendered.image, rendered.size != .zero else {
@@ -225,8 +227,8 @@ private extension WatchTextBuilder {
         let attachment = TextLabel.Attachment.hold(
             attrString: NSAttributedString(
                 string: code.deletingTrailingCharacters(in: .whitespacesAndNewlines) + "\n",
-                attributes: codeAttributes(theme: theme)
-            )
+                attributes: codeAttributes(theme: theme),
+            ),
         )
         attachment.size = rendered.size
 
@@ -235,17 +237,17 @@ private extension WatchTextBuilder {
             attributes: [
                 .font: theme.codeFont,
                 .litextAttachment: attachment,
-            ]
+            ],
         )
 
         if let action = makeCombinedAction(
             nil,
-            imageAction(image: image, size: rendered.size, context: context)
+            imageAction(image: image, size: rendered.size, context: context),
         ) {
             result.addAttribute(
                 .litextLineDrawingAction,
                 value: action,
-                range: NSRange(location: 0, length: result.length)
+                range: NSRange(location: 0, length: result.length),
             )
         }
 
@@ -254,12 +256,12 @@ private extension WatchTextBuilder {
             headIndent: context.leadingInset,
             minimumLineHeight: rendered.size.height,
             maximumLineHeight: rendered.size.height,
-            paragraphSpacing: theme.blockSpacing
+            paragraphSpacing: theme.blockSpacing,
         )
         result.addAttribute(
             kCTParagraphStyleAttributeName as NSAttributedString.Key,
             value: paragraph,
-            range: NSRange(location: 0, length: result.length)
+            range: NSRange(location: 0, length: result.length),
         )
         result.append(NSAttributedString(string: "\n"))
         return result
@@ -268,7 +270,7 @@ private extension WatchTextBuilder {
     func renderBlockquote(
         _ children: [MarkdownBlockNode],
         context: RenderContext,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) -> NSAttributedString {
         var quoteTheme = theme
         quoteTheme.textColor = theme.blockquoteTextColor
@@ -295,33 +297,33 @@ private extension WatchTextBuilder {
         if let paragraphStyle = result.attribute(
             kCTParagraphStyleAttributeName as NSAttributedString.Key,
             at: 0,
-            effectiveRange: nil
+            effectiveRange: nil,
         ) {
             startMarkerAttributes[kCTParagraphStyleAttributeName as NSAttributedString.Key] = paragraphStyle
         }
         if let paragraphStyle = result.attribute(
             kCTParagraphStyleAttributeName as NSAttributedString.Key,
             at: max(0, result.length - 1),
-            effectiveRange: nil
+            effectiveRange: nil,
         ) {
             endMarkerAttributes[kCTParagraphStyleAttributeName as NSAttributedString.Key] = paragraphStyle
         }
 
         let startMarker = NSMutableAttributedString(
             string: TextLabel.Attachment.replacementText,
-            attributes: startMarkerAttributes
+            attributes: startMarkerAttributes,
         )
         startMarker.addAttribute(
             .litextLineDrawingAction,
             value: TextLabel.LineDrawingAction { _, line, lineOrigin in
                 quoteTopY = lineBounds(line: line, origin: lineOrigin).maxY
             },
-            range: NSRange(location: 0, length: 1)
+            range: NSRange(location: 0, length: 1),
         )
 
         let endMarker = NSMutableAttributedString(
             string: TextLabel.Attachment.replacementText,
-            attributes: endMarkerAttributes
+            attributes: endMarkerAttributes,
         )
         endMarker.addAttribute(
             .litextLineDrawingAction,
@@ -332,19 +334,19 @@ private extension WatchTextBuilder {
                     x: context.leadingInset,
                     y: lineRect.minY,
                     width: theme.blockquoteBarWidth,
-                    height: quoteTopY - lineRect.minY
+                    height: quoteTopY - lineRect.minY,
                 )
                 let path = CGPath(
                     roundedRect: rect,
                     cornerWidth: theme.blockquoteBarWidth / 2,
                     cornerHeight: theme.blockquoteBarWidth / 2,
-                    transform: nil
+                    transform: nil,
                 )
                 drawContext.addPath(path)
                 drawContext.setFillColor(theme.blockquoteBorderColor)
                 drawContext.fillPath()
             },
-            range: NSRange(location: 0, length: 1)
+            range: NSRange(location: 0, length: 1),
         )
 
         result.insert(startMarker, at: 0)
@@ -355,7 +357,7 @@ private extension WatchTextBuilder {
 
     func renderThematicBreak(
         context: RenderContext,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) -> NSAttributedString {
         let attachment = TextLabel.Attachment.hold(attrString: NSAttributedString(string: "\n"))
         attachment.size = CGSize(width: 1, height: max(8, theme.bodySize))
@@ -365,12 +367,12 @@ private extension WatchTextBuilder {
             attributes: [
                 .font: theme.bodyFont,
                 .litextAttachment: attachment,
-            ]
+            ],
         )
 
         if let action = makeCombinedAction(
             nil,
-            separatorAction(context: context, theme: theme)
+            separatorAction(context: context, theme: theme),
         ) {
             result.addAttribute(.litextLineDrawingAction, value: action, range: NSRange(location: 0, length: result.length))
         }
@@ -381,12 +383,12 @@ private extension WatchTextBuilder {
             headIndent: context.leadingInset,
             minimumLineHeight: lineHeight,
             maximumLineHeight: lineHeight,
-            paragraphSpacing: theme.blockSpacing
+            paragraphSpacing: theme.blockSpacing,
         )
         result.addAttribute(
             kCTParagraphStyleAttributeName as NSAttributedString.Key,
             value: paragraph,
-            range: NSRange(location: 0, length: result.length)
+            range: NSRange(location: 0, length: result.length),
         )
         result.append(NSAttributedString(string: "\n"))
         return result
@@ -396,14 +398,14 @@ private extension WatchTextBuilder {
         rows: [RawTableRow],
         columnAlignments: [RawTableColumnAlignment],
         context: RenderContext,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) -> NSAttributedString {
         let rendered = WatchTableRenderer.render(
             rows: rows,
             columnAlignments: columnAlignments,
             theme: theme,
             maxWidth: max(1, maxWidth - context.leadingInset),
-            scale: scale
+            scale: scale,
         )
 
         guard let image = rendered.image, rendered.size != .zero else {
@@ -418,12 +420,12 @@ private extension WatchTextBuilder {
             attributes: [
                 .font: theme.bodyFont,
                 .litextAttachment: attachment,
-            ]
+            ],
         )
 
         let action = makeCombinedAction(
             nil,
-            imageAction(image: image, size: rendered.size, context: context)
+            imageAction(image: image, size: rendered.size, context: context),
         )
         if let action {
             result.addAttribute(.litextLineDrawingAction, value: action, range: NSRange(location: 0, length: result.length))
@@ -434,12 +436,12 @@ private extension WatchTextBuilder {
             headIndent: context.leadingInset,
             minimumLineHeight: rendered.size.height,
             maximumLineHeight: rendered.size.height,
-            paragraphSpacing: theme.blockSpacing
+            paragraphSpacing: theme.blockSpacing,
         )
         result.addAttribute(
             kCTParagraphStyleAttributeName as NSAttributedString.Key,
             value: paragraph,
-            range: NSRange(location: 0, length: result.length)
+            range: NSRange(location: 0, length: result.length),
         )
         result.append(NSAttributedString(string: "\n"))
         return result
@@ -450,9 +452,10 @@ private extension WatchTextBuilder {
         to result: NSMutableAttributedString,
         isTight: Bool,
         context: RenderContext,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) {
         let paragraphSpacing = isTight ? 2 : theme.blockSpacing
+        var columnWidths: [ClosedRange<Int>: CGFloat] = [:]
         for item in items {
             var itemContext = context
             itemContext.leadingInset += listIndent(depth: item.depth, theme: theme)
@@ -460,7 +463,14 @@ private extension WatchTextBuilder {
             let marker: ListMarker = if item.isTask {
                 .task(isCompleted: item.isDone)
             } else if item.ordered {
-                .numbered(item.index)
+                .numbered(
+                    item.index,
+                    columnWidth: numberColumnWidth(
+                        for: item.siblingIndices,
+                        cache: &columnWidths,
+                        theme: theme,
+                    ),
+                )
             } else {
                 .bullet(depth: item.depth)
             }
@@ -476,8 +486,8 @@ private extension WatchTextBuilder {
                     paragraphSpacing: paragraphSpacing,
                     marker: item.showsMarker ? marker : nil,
                     context: itemContext,
-                    theme: theme
-                )
+                    theme: theme,
+                ),
             )
         }
     }
@@ -513,7 +523,7 @@ private extension WatchTextBuilder {
     func imageAction(
         image: CGImage,
         size: CGSize,
-        context: RenderContext
+        context: RenderContext,
     ) -> LineAction {
         { drawContext, line, lineOrigin in
             let lineRect = lineBounds(line: line, origin: lineOrigin)
@@ -521,7 +531,7 @@ private extension WatchTextBuilder {
                 x: context.leadingInset,
                 y: lineRect.minY,
                 width: size.width,
-                height: size.height
+                height: size.height,
             )
             drawContext.draw(image, in: rect)
         }
@@ -534,7 +544,7 @@ private extension WatchTextBuilder {
         indent: CGFloat,
         in context: CGContext,
         line: CTLine,
-        lineOrigin: CGPoint
+        lineOrigin: CGPoint,
     ) {
         let lineRect = lineBounds(line: line, origin: lineOrigin)
         let gap: CGFloat = 6
@@ -546,15 +556,15 @@ private extension WatchTextBuilder {
                 x: indent - gap - diameter,
                 y: lineRect.midY - diameter / 2,
                 width: diameter,
-                height: diameter
+                height: diameter,
             )
             context.setFillColor(theme.textColor)
             context.fillEllipse(in: rect)
 
-        case let .numbered(index):
+        case let .numbered(index, _):
             let markerText = NSAttributedString(
                 string: "\(index).",
-                attributes: baseAttributes(font: font, theme: theme)
+                attributes: baseAttributes(font: font, theme: theme),
             )
             let ctLine = CTLineCreateWithAttributedString(markerText as CFAttributedString)
             let markerWidth = CGFloat(CTLineGetTypographicBounds(ctLine, nil, nil, nil))
@@ -567,7 +577,7 @@ private extension WatchTextBuilder {
                 x: indent - gap - boxSize,
                 y: lineRect.midY - boxSize / 2,
                 width: boxSize,
-                height: boxSize
+                height: boxSize,
             )
 
             context.setLineWidth(1.25)
@@ -596,19 +606,19 @@ private extension WatchTextBuilder {
         lineSpacing: CGFloat,
         paragraphSpacing: CGFloat,
         extraInsets: CGSize,
-        theme: WatchMarkdownTheme
+        theme: WatchMarkdownTheme,
     ) {
         let markerInset = marker.map { markerIndent(for: $0, font: baseFont, theme: theme) } ?? 0
         let paragraph = makeParagraphStyle(
             firstLineHeadIndent: leadingInset + markerInset + extraInsets.width,
             headIndent: leadingInset + markerInset + extraInsets.width,
             lineSpacing: lineSpacing,
-            paragraphSpacing: paragraphSpacing
+            paragraphSpacing: paragraphSpacing,
         )
         string.addAttribute(
             kCTParagraphStyleAttributeName as NSAttributedString.Key,
             value: paragraph,
-            range: NSRange(location: 0, length: string.length)
+            range: NSRange(location: 0, length: string.length),
         )
     }
 
@@ -618,7 +628,7 @@ private extension WatchTextBuilder {
         lineSpacing: CGFloat = 0,
         minimumLineHeight: CGFloat = 0,
         maximumLineHeight: CGFloat = 0,
-        paragraphSpacing: CGFloat = 0
+        paragraphSpacing: CGFloat = 0,
     ) -> CTParagraphStyle {
         var firstLineHeadIndent = firstLineHeadIndent
         var headIndent = headIndent
@@ -637,32 +647,32 @@ private extension WatchTextBuilder {
                                     CTParagraphStyleSetting(
                                         spec: .firstLineHeadIndent,
                                         valueSize: MemoryLayout<CGFloat>.size,
-                                        value: firstLinePointer
+                                        value: firstLinePointer,
                                     ),
                                     CTParagraphStyleSetting(
                                         spec: .headIndent,
                                         valueSize: MemoryLayout<CGFloat>.size,
-                                        value: headPointer
+                                        value: headPointer,
                                     ),
                                     CTParagraphStyleSetting(
                                         spec: .lineSpacingAdjustment,
                                         valueSize: MemoryLayout<CGFloat>.size,
-                                        value: lineSpacingPointer
+                                        value: lineSpacingPointer,
                                     ),
                                     CTParagraphStyleSetting(
                                         spec: .minimumLineHeight,
                                         valueSize: MemoryLayout<CGFloat>.size,
-                                        value: minimumLineHeightPointer
+                                        value: minimumLineHeightPointer,
                                     ),
                                     CTParagraphStyleSetting(
                                         spec: .maximumLineHeight,
                                         valueSize: MemoryLayout<CGFloat>.size,
-                                        value: maximumLineHeightPointer
+                                        value: maximumLineHeightPointer,
                                     ),
                                     CTParagraphStyleSetting(
                                         spec: .paragraphSpacing,
                                         valueSize: MemoryLayout<CGFloat>.size,
-                                        value: paragraphSpacingPointer
+                                        value: paragraphSpacingPointer,
                                     ),
                                 ]
                                 return CTParagraphStyleCreate(&settings, settings.count)
@@ -683,21 +693,35 @@ private extension WatchTextBuilder {
         }
     }
 
-    func markerIndent(for marker: ListMarker, font: CTFont, theme: WatchMarkdownTheme) -> CGFloat {
+    func markerIndent(for marker: ListMarker, font _: CTFont, theme _: WatchMarkdownTheme) -> CGFloat {
         let gap: CGFloat = 6
         switch marker {
         case .bullet:
             return 12 + gap
-        case let .numbered(index):
-            let string = NSAttributedString(
-                string: "\(index).",
-                attributes: baseAttributes(font: font, theme: theme)
-            )
-            let ctLine = CTLineCreateWithAttributedString(string as CFAttributedString)
-            return CGFloat(CTLineGetTypographicBounds(ctLine, nil, nil, nil)) + gap
+        case let .numbered(_, columnWidth):
+            return columnWidth + gap
         case .task:
             return 10 + gap
         }
+    }
+
+    /// The width of the widest `N.` marker among `indices`, measured once per list.
+    func numberColumnWidth(
+        for indices: ClosedRange<Int>,
+        cache: inout [ClosedRange<Int>: CGFloat],
+        theme: WatchMarkdownTheme,
+    ) -> CGFloat {
+        if let cached = cache[indices] {
+            return cached
+        }
+        let attributes = baseAttributes(font: theme.bodyFont, theme: theme)
+        let width = indices.map { index -> CGFloat in
+            let string = NSAttributedString(string: "\(index).", attributes: attributes)
+            let ctLine = CTLineCreateWithAttributedString(string as CFAttributedString)
+            return CGFloat(CTLineGetTypographicBounds(ctLine, nil, nil, nil))
+        }.max() ?? 0
+        cache[indices] = width
+        return width
     }
 
     func listIndent(depth: Int, theme: WatchMarkdownTheme) -> CGFloat {
@@ -713,7 +737,7 @@ private extension WatchTextBuilder {
             x: origin.x,
             y: origin.y - descent,
             width: width,
-            height: ascent + descent + leading
+            height: ascent + descent + leading,
         )
     }
 
@@ -726,7 +750,7 @@ private extension WatchTextBuilder {
     func markerPrefix(marker _: ListMarker, theme: WatchMarkdownTheme) -> NSAttributedString {
         NSAttributedString(
             string: TextLabel.Attachment.replacementText,
-            attributes: baseAttributes(font: theme.bodyFont, theme: theme)
+            attributes: baseAttributes(font: theme.bodyFont, theme: theme),
         )
     }
 
@@ -752,6 +776,7 @@ private extension WatchTextBuilder {
         func handle(_ items: [MappedItem], startAt: Int = 0, orderedValue: Bool) {
             nextIndex = startAt
             ordered = orderedValue
+            let siblingIndices = startAt ... startAt + max(items.count - 1, 0)
 
             for item in items {
                 var isFirstParagraph = true
@@ -766,8 +791,9 @@ private extension WatchTextBuilder {
                                 isTask: item.isDone != nil,
                                 isDone: item.isDone ?? false,
                                 showsMarker: isFirstParagraph,
-                                paragraph: contents
-                            )
+                                siblingIndices: siblingIndices,
+                                paragraph: contents,
+                            ),
                         )
                         isFirstParagraph = false
                     case let .bulletedList(_, children):
@@ -813,6 +839,8 @@ private extension WatchTextBuilder {
         let isTask: Bool
         let isDone: Bool
         let showsMarker: Bool
+        /// Every index its list numbers, for sizing the marker column.
+        let siblingIndices: ClosedRange<Int>
         let paragraph: [MarkdownInlineNode]
     }
 }

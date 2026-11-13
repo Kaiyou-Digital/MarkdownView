@@ -107,11 +107,11 @@ import Testing
 
     struct MarkdownViewCatalystBlockOrderTests {
         @MainActor
-        @Test("Hosted markdown keeps blocks ordered while the window narrows")
-        func hostedWindowKeepsBlocksOrdered() throws {
+        @Test
+        func `Hosted markdown keeps blocks ordered while the window narrows`() throws {
             let window = UIWindow(frame: .init(x: 0, y: 0, width: 800, height: 600))
             let host = UIHostingController(
-                rootView: ScrollView { MarkdownView(demoDocument).padding() }
+                rootView: ScrollView { MarkdownView(demoDocument).padding() },
             )
             window.rootViewController = host
             window.isHidden = false
@@ -128,14 +128,14 @@ import Testing
         }
 
         @MainActor
-        @Test("Narrow layout keeps every block below the previous block", arguments: [
+        @Test(arguments: [
             180.0 as CGFloat, 220, 260, 320, 420,
         ])
-        func narrowLayoutKeepsBlocksOrdered(width: CGFloat) {
+        func `Narrow layout keeps every block below the previous block`(width: CGFloat) {
             let view = MarkdownTextView()
             view.setContentImmediately(MarkdownContent(
                 parserResult: MarkdownParser().parse(demoDocument),
-                theme: .default
+                theme: .default,
             ))
             let size = view.boundingSize(for: width)
             view.frame = .init(x: 0, y: 0, width: width, height: size.height)
@@ -151,7 +151,9 @@ import Testing
         var queue: [UIView] = [view]
         while !queue.isEmpty {
             let next = queue.removeFirst()
-            if let match = next as? MarkdownTextView { return match }
+            if let match = next as? MarkdownTextView {
+                return match
+            }
             queue.append(contentsOf: next.subviews)
         }
         return nil
@@ -161,7 +163,7 @@ import Testing
     private func expectOrderedBlocks(
         in view: MarkdownTextView,
         context: String,
-        sourceLocation: SourceLocation = #_sourceLocation
+        sourceLocation: SourceLocation = #_sourceLocation,
     ) {
         let boxes = view.verticalLayoutBoxes()
         for index in boxes.indices.dropFirst() {
@@ -170,7 +172,7 @@ import Testing
             #expect(
                 current.frame.minY >= previous.frame.maxY - 0.5,
                 "\(current.label) at \(current.frame) overlaps \(previous.label) at \(previous.frame) — \(context)",
-                sourceLocation: sourceLocation
+                sourceLocation: sourceLocation,
             )
         }
     }

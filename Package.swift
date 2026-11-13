@@ -18,28 +18,28 @@ let package = Package(
         .library(name: "MarkdownParser", targets: ["MarkdownParser"]),
         .library(name: "WatchMarkdownView", targets: ["WatchMarkdownView"]),
         .executable(name: "MarkdownViewBenchmark", targets: ["MarkdownViewBenchmark"]),
+        .executable(name: "MarkdownViewCatalog", targets: ["MarkdownViewCatalog"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/Kaiyou-Digital/Litext.git", from: "1.0.0"),
+        .package(url: "https://github.com/Lakr233/Litext", from: "3.6.5"),
         .package(url: "https://github.com/mgriebling/SwiftMath", from: "1.7.3"),
-        .package(url: "https://github.com/apple/swift-collections", from: "1.6.0"),
-        .package(url: "https://github.com/raspu/Highlightr", from: "2.3.0"),
-        .package(url: "https://github.com/swiftlang/swift-cmark", from: "0.8.0"),
-        .package(url: "https://github.com/nicklockwood/LRUCache", from: "1.2.1"),
+        .package(url: "https://github.com/apple/swift-collections", from: "1.7.1"),
+        .package(url: "https://github.com/swiftlang/swift-cmark", from: "0.9.0"),
+        .package(url: "https://github.com/nicklockwood/LRUCache", from: "1.3.0"),
     ],
     targets: [
         .target(
             name: "MarkdownView",
             dependencies: [
                 "Litext",
-                "Highlightr",
+                .product(name: "LitextAnimation", package: "Litext"),
                 "MarkdownParser",
                 "SwiftMath",
                 "LRUCache",
                 .product(name: "DequeModule", package: "swift-collections"),
                 .product(name: "OrderedCollections", package: "swift-collections"),
             ],
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
         ),
         .target(
             name: "WatchMarkdownView",
@@ -47,14 +47,20 @@ let package = Package(
                 "Litext",
                 "MarkdownParser",
                 "LRUCache",
-            ]
+            ],
         ),
         .executableTarget(
             name: "MarkdownViewBenchmark",
             dependencies: [
                 "MarkdownView",
                 "MarkdownParser",
-            ]
+            ],
+        ),
+        .executableTarget(
+            name: "MarkdownViewCatalog",
+            dependencies: [
+                "MarkdownView",
+            ],
         ),
         .target(name: "MarkdownParser", dependencies: [
             .product(name: "cmark-gfm", package: "swift-cmark"),
@@ -64,7 +70,7 @@ let package = Package(
             name: "MarkdownParserTests",
             dependencies: [
                 "MarkdownParser",
-            ]
+            ],
         ),
         .testTarget(
             name: "MarkdownViewTests",
@@ -72,7 +78,7 @@ let package = Package(
                 "MarkdownView",
                 "MarkdownParser",
             ],
-            resources: [.process("Fixtures")]
+            resources: [.process("Fixtures")],
         ),
-    ]
+    ],
 )

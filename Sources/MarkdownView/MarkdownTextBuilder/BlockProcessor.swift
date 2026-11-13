@@ -20,6 +20,8 @@ final class BlockProcessor {
     private let viewProvider: ReusableViewProvider
     private let context: MarkdownContent
     private let thematicBreakDrawing: TextBuilder.DrawingCallback?
+    /// The view breaks are drawn for; see `MarkLineDrawingAction`.
+    private let drawingOwner: ObjectIdentifier?
     private let inlineTextDecoration: TextBuilder.InlineTextDecoration?
 
     init(
@@ -27,12 +29,14 @@ final class BlockProcessor {
         viewProvider: ReusableViewProvider,
         context: MarkdownContent,
         thematicBreakDrawing: TextBuilder.DrawingCallback?,
-        inlineTextDecoration: TextBuilder.InlineTextDecoration?
+        drawingOwner: ObjectIdentifier?,
+        inlineTextDecoration: TextBuilder.InlineTextDecoration?,
     ) {
         self.theme = theme
         self.viewProvider = viewProvider
         self.context = context
         self.thematicBreakDrawing = thematicBreakDrawing
+        self.drawingOwner = drawingOwner
         self.inlineTextDecoration = inlineTextDecoration
     }
 
@@ -47,11 +51,16 @@ final class BlockProcessor {
             paragraph.paragraphSpacing = theme.spacings.paragraph
             paragraph.paragraphSpacingBefore = level <= 2 ? theme.spacings.headingBefore * 1.5 : theme.spacings.headingBefore
         } content: {
-            let string = contents.render(theme: theme, context: context, viewProvider: viewProvider, decoration: inlineTextDecoration)
-            string.addAttributes(
-                [.font: font],
-                range: NSRange(location: 0, length: string.length)
-            )
+            let string = contents.render(theme: theme, context: context, decoration: inlineTextDecoration)
+            let fullRange = NSRange(location: 0, length: string.length)
+            string.enumerateAttribute(.font, in: fullRange, options: []) { value, range, _ in
+                // Inline code keeps its monospaced face inside a heading.
+                guard (value as? PlatformFont) != theme.fonts.codeInline else { return }
+                string.addAttribute(.font, value: font, range: range)
+            }
+            // Replacing the font discarded the fallback the body text resolved
+            // for its language, so resolve it again for the title font.
+            MarkdownContentLocale.resolveFonts(in: string, fallbackLocale: context.locale)
             return string
         }
     }
@@ -61,7 +70,7 @@ final class BlockProcessor {
             paragraph.paragraphSpacing = theme.spacings.paragraph
             paragraph.lineSpacing = 4
         } content: {
-            let rendered = contents.render(theme: theme, context: context, viewProvider: viewProvider, decoration: inlineTextDecoration)
+            let rendered = contents.render(theme: theme, context: context, decoration: inlineTextDecoration)
             if rendered.length == 0 {
                 return NSMutableAttributedString(string: " ", attributes: [.font: theme.fonts.body])
             }
@@ -75,9 +84,13 @@ final class BlockProcessor {
             return .init(string: TextLabel.Attachment.replacementText, attributes: [
                 .font: theme.fonts.body,
                 .litextAttachment: TextLabel.Attachment.hold(attrString: .init(string: "\n\n")),
-                .litextLineDrawingAction: TextLabel.LineDrawingAction(action: { context, line, lineOrigin in
+                .litextLineDrawingAction: MarkLineDrawingAction(
+                    mark: .thematicBreak,
+                    theme: theme,
+                    owner: drawingOwner,
+                ) { context, line, lineOrigin in
                     drawingCallback?(context, line, lineOrigin)
-                }),
+                },
             ])
         }
     }
@@ -85,22 +98,28 @@ final class BlockProcessor {
     func processCodeBlock(
         language: String?,
         content: String,
-        highlightMap: CodeHighlighter.HighlightMap?
+        highlightMap: CodeHighlighter.HighlightMap?,
+        highlightKey: Int,
     ) -> (NSAttributedString, CodeView) {
         let content = content.deletingSuffix(of: .whitespacesAndNewlines)
         let codeView = viewProvider.acquireCodeView()
         codeView.theme = theme
         codeView.language = language ?? ""
-        codeView.setContent(content, highlightMap: highlightMap)
+        codeView.highlightKey = highlightKey
+        codeView.setContent(content, highlightMap: highlightMap, highlightKey: highlightKey)
+        let appearance = ContextViewAttachment.Appearance.of(codeView)
         let text = buildWithParagraphSync { paragraph in
             // Reserve exactly what the view will occupy. Estimating the height from
             // the source text instead lets the two numbers drift apart, and the view
             // then paints over whatever follows it.
-            paragraph.minimumLineHeight = codeView.intrinsicContentSize.height
+            paragraph.minimumLineHeight = appearance.size.height
         } content: {
             .init(string: TextLabel.Attachment.replacementText, attributes: [
                 .font: theme.fonts.body,
-                .litextAttachment: TextLabel.Attachment.hold(attrString: .init(string: content + "\n")),
+                .litextAttachment: ContextViewAttachment(
+                    representation: .init(string: content + "\n"),
+                    appearance: appearance,
+                ),
                 .contextView: codeView,
             ])
         }
@@ -115,7 +134,9 @@ final class BlockProcessor {
         let baseParagraphStyle = NSMutableParagraphStyle()
         baseParagraphStyle.firstLineHeadIndent = 16
         baseParagraphStyle.headIndent = 16
-        baseParagraphStyle.tailIndent = -4
+        // No tail indent: a negative one hides from line origins and widths, so
+        // the text layout gives up measuring from the laid-out frame and
+        // typesets every document holding a quote twice per update.
         baseParagraphStyle.paragraphSpacing = 8
         baseParagraphStyle.lineSpacing = 4
 
@@ -124,7 +145,7 @@ final class BlockProcessor {
                 assertionFailure("Blockquote should only contain paragraphs after flattening")
                 continue
             }
-            let paragraphContent = content.render(theme: theme, context: context, viewProvider: viewProvider, decoration: inlineTextDecoration)
+            let paragraphContent = content.render(theme: theme, context: context, decoration: inlineTextDecoration)
             result.append(paragraphContent)
             if !result.string.hasSuffix("\n") {
                 result.append(NSAttributedString(string: "\n", attributes: [.font: theme.fonts.body]))
@@ -146,7 +167,7 @@ final class BlockProcessor {
                 .paragraphStyle: baseParagraphStyle,
                 .blockquoteGroup: BlockquoteGroup(),
             ],
-            range: NSRange(location: 0, length: result.length)
+            range: NSRange(location: 0, length: result.length),
         )
         result.append(.init(string: "\n", attributes: [
             .font: theme.fonts.body,
@@ -158,20 +179,21 @@ final class BlockProcessor {
 
     func processTable(
         columnAlignments: [RawTableColumnAlignment],
-        rows: [RawTableRow]
+        rows: [RawTableRow],
     ) -> (NSAttributedString, TableView) {
         let tableView = viewProvider.acquireTableView()
         let representedText: NSAttributedString
         if let reused = tableView.representedText(
             reusingRows: rows,
             columnAlignments: columnAlignments,
-            theme: theme
+            theme: theme,
+            content: context,
         ) {
             representedText = reused
         } else {
             let contents = rows.map {
                 $0.cells.map { rawCell in
-                    rawCell.content.render(theme: theme, context: context, viewProvider: viewProvider, decoration: inlineTextDecoration)
+                    rawCell.content.render(theme: theme, context: context, decoration: inlineTextDecoration)
                 }
             }
             let allContent = contents
@@ -184,16 +206,21 @@ final class BlockProcessor {
                 rows: rows,
                 columnAlignments: columnAlignments,
                 theme: theme,
-                representedText: representedText
+                content: context,
+                representedText: representedText,
             )
         }
 
+        let appearance = ContextViewAttachment.Appearance.of(tableView)
         let text = buildWithParagraphSync { paragraph in
-            paragraph.minimumLineHeight = tableView.intrinsicContentHeight
+            paragraph.minimumLineHeight = appearance.size.height
         } content: {
             .init(string: TextLabel.Attachment.replacementText, attributes: [
                 .font: theme.fonts.body,
-                .litextAttachment: TextLabel.Attachment.hold(attrString: representedText),
+                .litextAttachment: ContextViewAttachment(
+                    representation: representedText,
+                    appearance: appearance,
+                ),
                 .contextView: tableView,
             ])
         }
@@ -207,7 +234,7 @@ extension BlockProcessor {
     private func buildWithParagraphSync(
         withNewLine: Bool = true,
         modifier: (inout NSMutableParagraphStyle) -> Void = { _ in },
-        content: () -> NSMutableAttributedString
+        content: () -> NSMutableAttributedString,
     ) -> NSMutableAttributedString {
         var paragraphStyle: NSMutableParagraphStyle = .init()
         paragraphStyle.paragraphSpacing = theme.spacings.paragraph
@@ -217,23 +244,11 @@ extension BlockProcessor {
         let string = content()
         string.addAttributes(
             [.paragraphStyle: paragraphStyle],
-            range: .init(location: 0, length: string.length)
+            range: .init(location: 0, length: string.length),
         )
         if withNewLine, !string.string.hasSuffix("\n") {
             string.append(.init(string: "\n"))
         }
         return string
-    }
-
-    private func removeLeadingSpacing(from attributedString: NSAttributedString) -> NSAttributedString {
-        let mutableString = attributedString.mutableCopy() as! NSMutableAttributedString
-        mutableString.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: mutableString.length), options: []) { value, range, _ in
-            if let style = value as? NSParagraphStyle {
-                let mutableStyle = style.mutableCopy() as! NSMutableParagraphStyle
-                mutableStyle.paragraphSpacingBefore = 0
-                mutableString.addAttribute(.paragraphStyle, value: mutableStyle, range: range)
-            }
-        }
-        return mutableString
     }
 }

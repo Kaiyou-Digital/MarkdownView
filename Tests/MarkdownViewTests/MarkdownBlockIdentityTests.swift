@@ -22,17 +22,19 @@ struct MarkdownBlockIdentityTests {
         text.enumerateAttribute(
             .blockquoteGroup,
             in: NSRange(location: 0, length: text.length),
-            options: []
+            options: [],
         ) { value, _, _ in
             guard let group = value as? BlockquoteGroup else { return }
-            if !groups.contains(where: { $0 === group }) { groups.append(group) }
+            if !groups.contains(where: { $0 === group }) {
+                groups.append(group)
+            }
         }
         return groups
     }
 
     @MainActor
-    @Test("Two identical quotes are two quotes, not one")
-    func identicalQuotesKeepSeparateGroups() {
+    @Test
+    func `Two identical quotes are two quotes, not one`() {
         let view = RenderProbe.view("""
         > 完全相同的引用 identical quote
 
@@ -50,8 +52,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("Two identical quotes stay two quotes after a rebuild reuses them")
-    func identicalQuotesKeepSeparateGroupsWhenReused() {
+    @Test
+    func `Two identical quotes stay two quotes after a rebuild reuses them`() {
         // The first build populates the block cache; the second is the one that
         // can go wrong. A cache keyed on the block's value rather than on its
         // position would hand both quotes the same fragment here, and with it
@@ -74,8 +76,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("Adjacent quote lines stay one quote")
-    func adjacentQuoteLinesShareOneGroup() {
+    @Test
+    func `Adjacent quote lines stay one quote`() {
         let view = RenderProbe.view("""
         > 第一行 first line
         > 第二行 second line
@@ -87,8 +89,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("Two identical code blocks get two code views")
-    func identicalCodeBlocksGetSeparateViews() {
+    @Test
+    func `Two identical code blocks get two code views`() {
         let view = RenderProbe.view("""
         ```swift
         let answer = 42
@@ -110,8 +112,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("Two identical tables get two table views")
-    func identicalTablesGetSeparateViews() {
+    @Test
+    func `Two identical tables get two table views`() {
         let view = RenderProbe.view("""
         | A | B |
         | - | - |
@@ -132,8 +134,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("A repeated paragraph appears once per occurrence")
-    func repeatedParagraphsAllAppear() {
+    @Test
+    func `A repeated paragraph appears once per occurrence`() {
         let view = RenderProbe.view("""
         完全相同的一段 repeated paragraph.
 
@@ -149,7 +151,7 @@ struct MarkdownBlockIdentityTests {
             let range = text.range(
                 of: "repeated paragraph.",
                 options: [],
-                range: NSRange(location: cursor, length: text.length - cursor)
+                range: NSRange(location: cursor, length: text.length - cursor),
             )
             guard range.location != NSNotFound else { break }
             count += 1
@@ -159,8 +161,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("A numbered list carries its start index into each marker")
-    func numberedMarkersFollowTheStartIndex() {
+    @Test
+    func `A numbered list carries its start index into each marker`() {
         let view = RenderProbe.view("""
         5. 第五 five
         6. 第六 six
@@ -172,8 +174,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("Identical list text at two depths gets two indents")
-    func identicalItemsAtDifferentDepthsIndentDifferently() {
+    @Test
+    func `Identical list text at two depths gets two indents`() {
         let view = RenderProbe.view("""
         - 相同文字 same text outer
           - 相同文字 same text inner
@@ -190,8 +192,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("Bullet, task and numbered markers stand for their own markdown")
-    func markersStandForTheirOwnMarkdown() {
+    @Test
+    func `Bullet, task and numbered markers stand for their own markdown`() {
         let view = RenderProbe.view("""
         - bullet one
         - bullet two
@@ -207,8 +209,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("A nested bullet marker carries its nesting")
-    func nestedBulletMarkersCarryDepth() {
+    @Test
+    func `A nested bullet marker carries its nesting`() {
         let view = RenderProbe.view("""
         - outer
           - inner
@@ -221,8 +223,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("Blocks keep document order")
-    func blocksKeepDocumentOrder() {
+    @Test
+    func `Blocks keep document order`() {
         let view = RenderProbe.view("""
         first paragraph
 
@@ -249,8 +251,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("A code block reserves exactly the height its view occupies")
-    func codeBlockReservesItsViewHeight() {
+    @Test
+    func `A code block reserves exactly the height its view occupies`() {
         // The reserved height is read off the code view, so a cache that hands
         // back a block built against a different view would reserve the wrong
         // band and let the code paint over the paragraph below it.
@@ -272,7 +274,7 @@ struct MarkdownBlockIdentityTests {
         text.enumerateAttribute(
             .contextView,
             in: NSRange(location: 0, length: text.length),
-            options: []
+            options: [],
         ) { value, range, _ in
             guard value is CodeView else { return }
             reserved = (text.attribute(.paragraphStyle, at: range.location, effectiveRange: nil)
@@ -285,8 +287,8 @@ struct MarkdownBlockIdentityTests {
     }
 
     @MainActor
-    @Test("A table reserves exactly the height its view occupies")
-    func tableReservesItsViewHeight() {
+    @Test
+    func `A table reserves exactly the height its view occupies`() {
         let view = RenderProbe.view("""
         Before.
 
@@ -304,7 +306,7 @@ struct MarkdownBlockIdentityTests {
         text.enumerateAttribute(
             .contextView,
             in: NSRange(location: 0, length: text.length),
-            options: []
+            options: [],
         ) { value, range, _ in
             guard value is TableView else { return }
             reserved = (text.attribute(.paragraphStyle, at: range.location, effectiveRange: nil)

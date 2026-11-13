@@ -16,25 +16,27 @@ import Testing
             var queue: [NSView] = [view]
             while !queue.isEmpty {
                 let view = queue.removeFirst()
-                if let match = view as? MarkdownTextView { return match }
+                if let match = view as? MarkdownTextView {
+                    return match
+                }
                 queue.append(contentsOf: view.subviews)
             }
             return nil
         }
 
         @MainActor
-        @Test("SwiftUI host reflows markdown text when the window shrinks")
-        func hostReflowsOnWindowResize() throws {
+        @Test
+        func `SwiftUI host reflows markdown text when the window shrinks`() throws {
             let window = NSWindow(
                 contentRect: .init(x: 0, y: 0, width: 800, height: 600),
                 styleMask: [.titled, .resizable],
                 backing: .buffered,
-                defer: true
+                defer: true,
             )
             let host = NSHostingView(
                 rootView: ScrollView {
                     MarkdownView(Self.document)
-                }
+                },
             )
             window.contentView = host
             host.layoutSubtreeIfNeeded()

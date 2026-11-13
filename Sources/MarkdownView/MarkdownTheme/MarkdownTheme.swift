@@ -17,6 +17,8 @@ import Litext
 public extension MarkdownTheme {
     @MainActor static var `default`: MarkdownTheme = .init()
     static let codeScale = 0.85
+    /// Inline code is set at the body's size.
+    static let codeInlineScale = 1.0
 }
 
 public struct MarkdownTheme: Equatable, @unchecked Sendable {
@@ -24,14 +26,14 @@ public struct MarkdownTheme: Equatable, @unchecked Sendable {
         #if canImport(UIKit)
             public var body = UIFont.preferredFont(forTextStyle: .body)
             public var codeInline = UIFont.monospacedSystemFont(
-                ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize,
-                weight: .regular
+                ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize * codeInlineScale,
+                weight: .regular,
             )
             public var bold = UIFont.preferredFont(forTextStyle: .body).bold
             public var italic = UIFont.preferredFont(forTextStyle: .body).italic
             public var code = UIFont.monospacedSystemFont(
                 ofSize: ceil(UIFont.preferredFont(forTextStyle: .body).pointSize * codeScale),
-                weight: .regular
+                weight: .regular,
             )
             public var largeTitle = UIFont.preferredFont(forTextStyle: .body).bold
             public var title = UIFont.preferredFont(forTextStyle: .body).bold
@@ -39,14 +41,14 @@ public struct MarkdownTheme: Equatable, @unchecked Sendable {
         #elseif canImport(AppKit)
             public var body = NSFont.systemFont(ofSize: NSFont.systemFontSize)
             public var codeInline = NSFont.monospacedSystemFont(
-                ofSize: NSFont.systemFontSize,
-                weight: .regular
+                ofSize: NSFont.systemFontSize * codeInlineScale,
+                weight: .regular,
             )
             public var bold = NSFont.systemFont(ofSize: NSFont.systemFontSize).bold
             public var italic = NSFont.systemFont(ofSize: NSFont.systemFontSize).italic
             public var code = NSFont.monospacedSystemFont(
                 ofSize: ceil(NSFont.systemFontSize * codeScale),
-                weight: .regular
+                weight: .regular,
             )
             public var largeTitle = NSFont.systemFont(ofSize: NSFont.systemFontSize).bold
             public var title = NSFont.systemFont(ofSize: NSFont.systemFontSize).bold
@@ -68,7 +70,9 @@ public struct MarkdownTheme: Equatable, @unchecked Sendable {
                     ?? UIColor(named: "accentColor")
                     ?? .systemOrange
             public var code = UIColor.label
-            public var codeBackground = UIColor.gray.withAlphaComponent(0.25)
+            public var codeBackground = CodeBlockDefaults.background
+            public var codeBlockBackground = CodeBlockDefaults.background
+            public var codeBlockBarBackground = CodeBlockDefaults.barBackground
             public var selectionBackground: UIColor? =
                 (UIColor(named: "AccentColor")
                         ?? UIColor(named: "accentColor")
@@ -84,7 +88,9 @@ public struct MarkdownTheme: Equatable, @unchecked Sendable {
                     ?? NSColor(named: "accentColor")
                     ?? .systemOrange
             public var code = NSColor.labelColor
-            public var codeBackground = NSColor.gray.withAlphaComponent(0.25)
+            public var codeBackground = CodeBlockDefaults.background
+            public var codeBlockBackground = CodeBlockDefaults.background
+            public var codeBlockBarBackground = CodeBlockDefaults.barBackground
             public var selectionBackground: NSColor? =
                 (NSColor(named: "AccentColor")
                         ?? NSColor(named: "accentColor")
@@ -133,7 +139,21 @@ public struct MarkdownTheme: Equatable, @unchecked Sendable {
 
     public var table: Table = .init()
 
+    public var syntax: Syntax = .init()
+
     public init() {}
+}
+
+/// Translucent, so a code block shades whatever it sits on rather than
+/// laying a fixed grey over a tinted page: 5% black in light appearance,
+/// 10% white in dark. The bar sits on the body and lays the same layer
+/// again, so it is one step further from the page.
+enum CodeBlockDefaults {
+    static let background = PlatformColor(
+        light: PlatformColor.black.withAlphaComponent(0.05),
+        dark: PlatformColor.white.withAlphaComponent(0.1),
+    )
+    static let barBackground = background
 }
 
 public extension MarkdownTheme {
@@ -199,7 +219,7 @@ public extension MarkdownTheme {
 
     mutating func align(to pointSize: CGFloat) {
         fonts.body = fonts.body.withSize(pointSize)
-        fonts.codeInline = fonts.codeInline.withSize(pointSize)
+        fonts.codeInline = fonts.codeInline.withSize(pointSize * Self.codeInlineScale)
         fonts.bold = fonts.bold.withSize(pointSize).bold
         fonts.italic = fonts.italic.withSize(pointSize)
         fonts.code = fonts.code.withSize(pointSize * Self.codeScale)

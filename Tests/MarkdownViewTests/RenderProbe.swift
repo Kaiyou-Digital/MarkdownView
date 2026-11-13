@@ -41,12 +41,12 @@ enum RenderProbe {
     static func content(
         _ markdown: String,
         theme: MarkdownTheme = .default,
-        locale: Locale = .init(identifier: "en_US")
+        locale: Locale = .init(identifier: "en_US"),
     ) -> MarkdownContent {
         .init(
             parserResult: MarkdownParser().parse(markdown),
             theme: theme,
-            locale: locale
+            locale: locale,
         )
     }
 
@@ -56,7 +56,7 @@ enum RenderProbe {
         _ markdown: String,
         width: CGFloat = 480,
         theme: MarkdownTheme = .default,
-        locale: Locale = .init(identifier: "en_US")
+        locale: Locale = .init(identifier: "en_US"),
     ) -> MarkdownTextView {
         let view = MarkdownTextView()
         view.theme = theme
@@ -76,14 +76,14 @@ enum RenderProbe {
         in view: MarkdownTextView,
         width: CGFloat = 480,
         theme: MarkdownTheme = .default,
-        locale: Locale = .init(identifier: "en_US")
+        locale: Locale = .init(identifier: "en_US"),
     ) -> NSAttributedString {
         view.setContentImmediately(content(markdown, theme: theme, locale: locale))
         view.frame = .init(
             x: 0,
             y: 0,
             width: width,
-            height: view.boundingSize(for: width).height
+            height: view.boundingSize(for: width).height,
         )
         layout(view)
         return view.textLabelView.attributedText
@@ -128,9 +128,13 @@ enum RenderProbe {
     static func firstDifference(_ lhs: [String], _ rhs: [String]) -> String {
         for (index, line) in lhs.enumerated() {
             guard index < rhs.count else { return "missing: \(line)" }
-            if line != rhs[index] { return "\(line)\n  vs\n\(rhs[index])" }
+            if line != rhs[index] {
+                return "\(line)\n  vs\n\(rhs[index])"
+            }
         }
-        if rhs.count > lhs.count { return "extra: \(rhs[lhs.count])" }
+        if rhs.count > lhs.count {
+            return "extra: \(rhs[lhs.count])"
+        }
         return "identical"
     }
 
@@ -145,7 +149,7 @@ enum RenderProbe {
         text.enumerateAttribute(
             .litextAttachment,
             in: NSRange(location: 0, length: text.length),
-            options: []
+            options: [],
         ) { value, _, _ in
             guard let attachment = value as? TextLabel.Attachment else { return }
             result.append(attachment.attributedStringRepresentation().string)
@@ -247,4 +251,12 @@ enum RenderProbeDocument {
 
     最后一段 trailing paragraph.
     """
+}
+
+/// A table's cells row by row, from each column's cells top to bottom.
+func rowByRow<Cell>(_ columns: [[Cell]]) -> [Cell] {
+    let rowCount = columns.map(\.count).max() ?? 0
+    return (0 ..< rowCount).flatMap { row in
+        columns.compactMap { $0[safe: row] }
+    }
 }

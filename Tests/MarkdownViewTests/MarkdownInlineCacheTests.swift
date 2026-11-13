@@ -35,8 +35,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("The same text under two body fonts renders both fonts")
-    func cacheDistinguishesBodyFont() {
+    @Test
+    func `The same text under two body fonts renders both fonts`() {
         let content = RenderProbe.content("placeholder")
         let small = content.cachedBodyText("中文 text", theme: themeWithBodyFont(size: 12))
         let large = content.cachedBodyText("中文 text", theme: themeWithBodyFont(size: 24))
@@ -49,8 +49,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("The same text under two body colors renders both colors")
-    func cacheDistinguishesBodyColor() {
+    @Test
+    func `The same text under two body colors renders both colors`() {
         let content = RenderProbe.content("placeholder")
         let red = content.cachedBodyText("中文 text", theme: themeWithBodyColor(.systemRed))
         let blue = content.cachedBodyText("中文 text", theme: themeWithBodyColor(.systemBlue))
@@ -64,8 +64,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Repeating a lookup returns equal text")
-    func repeatedLookupsAgree() {
+    @Test
+    func `Repeating a lookup returns equal text`() {
         let content = RenderProbe.content("placeholder")
         let theme = MarkdownTheme.default
         let first = content.cachedBodyText("中文 text 日本語かな", theme: theme)
@@ -75,8 +75,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Different texts do not share an entry")
-    func differentTextsDoNotCollide() {
+    @Test
+    func `Different texts do not share an entry`() {
         let content = RenderProbe.content("placeholder")
         let theme = MarkdownTheme.default
 
@@ -95,7 +95,7 @@ struct MarkdownInlineCacheTests {
     private func glyphs(of text: NSAttributedString) -> [CGGlyph] {
         let line = CTLineCreateWithAttributedString(text)
         var result: [CGGlyph] = []
-        for run in (CTLineGetGlyphRuns(line) as NSArray) {
+        for run in CTLineGetGlyphRuns(line) as NSArray {
             let run = run as! CTRun
             let count = CTRunGetGlyphCount(run)
             var glyphs = [CGGlyph](repeating: 0, count: count)
@@ -109,8 +109,8 @@ struct MarkdownInlineCacheTests {
     private static let variantHan = "直骨門今雪類"
 
     @MainActor
-    @Test("Han text is drawn the way its locale draws it")
-    func hanTextFollowsTheLocale() {
+    @Test
+    func `Han text is drawn the way its locale draws it`() {
         func drawn(_ localeIdentifier: String) -> [CGGlyph] {
             let content = RenderProbe.content("placeholder", locale: .init(identifier: localeIdentifier))
             return glyphs(of: content.cachedBodyText(Self.variantHan, theme: .default))
@@ -124,13 +124,13 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Only the languages that still change the result keep their attribute")
-    func shapingLanguagesKeepTheirAttribute() {
-        // The attribute triples the cost of building a framesetter, and it is
-        // paid on every rebuild, so it is dropped once the font it selected has
-        // been resolved. It stays for the two languages where dropping it was
-        // measured to change what the reader sees: Traditional Chinese draws
-        // 41% of ideographs differently, and Korean breaks lines differently.
+    @Test
+    func `Only the languages that still change the result keep their attribute`() {
+        /// The attribute triples the cost of building a framesetter, and it is
+        /// paid on every rebuild, so it is dropped once the font it selected has
+        /// been resolved. It stays for the two languages where dropping it was
+        /// measured to change what the reader sees: Traditional Chinese draws
+        /// 41% of ideographs differently, and Korean breaks lines differently.
         func language(_ localeIdentifier: String, _ text: String) -> String? {
             let content = RenderProbe.content("placeholder", locale: .init(identifier: localeIdentifier))
             return content.cachedBodyText(text, theme: .default)
@@ -144,13 +144,16 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Two locales are cached apart")
-    func cacheDistinguishesLocale() {
+    @Test
+    func `Two locales are cached apart`() {
         let japanese = RenderProbe.content("placeholder", locale: .init(identifier: "ja"))
         let chinese = RenderProbe.content("placeholder", locale: .init(identifier: "zh-Hans"))
 
-        let fromJapanese = japanese.cachedBodyText("汉字", theme: .default)
-        let fromChinese = chinese.cachedBodyText("汉字", theme: .default)
+        // Characters both a Japanese and a Chinese face cover. One only a Chinese
+        // face has, such as 汉, falls back to that face under either locale on
+        // iOS, and comes out the same.
+        let fromJapanese = japanese.cachedBodyText(Self.variantHan, theme: .default)
+        let fromChinese = chinese.cachedBodyText(Self.variantHan, theme: .default)
 
         // Two contents, two locales, one shared cache: the entries must not be
         // the same one, and the difference has to survive as far as the glyphs.
@@ -159,8 +162,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Scripts that name their own language ignore the locale")
-    func scriptsOverrideTheLocale() {
+    @Test
+    func `Scripts that name their own language ignore the locale`() {
         // Kana, hangul, Arabic and Hebrew identify their language on their own;
         // only Han is ambiguous enough to need the locale.
         let content = RenderProbe.content("placeholder", locale: .init(identifier: "en_US"))
@@ -176,8 +179,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Han inside a kana word is read as Japanese")
-    func hanInAKanaWordReadsAsJapanese() {
+    @Test
+    func `Han inside a kana word is read as Japanese`() {
         // 日本語 is Han, but the token it sits in carries kana, so the whole word
         // is Japanese even when the reader's locale is Chinese.
         let content = RenderProbe.content("placeholder", locale: .init(identifier: "zh-Hans"))
@@ -187,8 +190,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Latin-only text carries no language attribute")
-    func latinTextCarriesNoLanguage() {
+    @Test
+    func `Latin-only text carries no language attribute`() {
         let content = RenderProbe.content("placeholder")
         let rendered = content.cachedBodyText("Plain english sentence.", theme: .default)
 
@@ -196,16 +199,18 @@ struct MarkdownInlineCacheTests {
         rendered.enumerateAttribute(
             .coreTextLanguage,
             in: NSRange(location: 0, length: rendered.length),
-            options: []
+            options: [],
         ) { value, _, _ in
-            if value != nil { found = true }
+            if value != nil {
+                found = true
+            }
         }
         #expect(!found)
     }
 
     @MainActor
-    @Test("Changing the theme on a live view re-renders its text")
-    func themeChangeRerendersTheDocument() {
+    @Test
+    func `Changing the theme on a live view re-renders its text`() {
         let markdown = "一段中文 paragraph with text."
         let view = MarkdownTextView()
         view.theme = themeWithBodyFont(size: 12)
@@ -221,8 +226,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("A theme change grows the laid out document")
-    func themeChangeChangesMeasuredHeight() {
+    @Test
+    func `A theme change grows the laid out document`() {
         let markdown = String(repeating: "一段中文 paragraph with text. ", count: 8)
         let view = MarkdownTextView()
         view.theme = themeWithBodyFont(size: 12)
@@ -237,8 +242,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Inline styles keep their own fonts and colors, not the body's")
-    func inlineStylesSurviveTheBodyCache() {
+    @Test
+    func `Inline styles keep their own fonts and colors, not the body's`() {
         // Bold, code and links are built around the cached body text; a cache
         // that handed back a shared mutable instance would let one of them
         // repaint the plain text around it.
@@ -255,15 +260,15 @@ struct MarkdownInlineCacheTests {
         #expect(text.attribute(
             .link,
             at: (text.string as NSString).range(of: "link").location,
-            effectiveRange: nil
+            effectiveRange: nil,
         ) != nil)
         // The plain run must not have picked up the link's color.
         #expect(RenderProbe.color(at: "plain again", in: text) == MarkdownTheme.default.colors.body)
     }
 
     @MainActor
-    @Test("Two contents share one rendering of the same text")
-    func renderedTextIsSharedBetweenContents() {
+    @Test
+    func `Two contents share one rendering of the same text`() {
         // Streaming builds a new content per token, so a cache that does not
         // reach across instances never gets a second lookup. Asserting the
         // shared instance is what keeps that from quietly reverting.
@@ -278,8 +283,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("A shared entry still belongs to its own theme")
-    func sharedCacheKeepsThemesApart() {
+    @Test
+    func `A shared entry still belongs to its own theme`() {
         let first = RenderProbe.content("placeholder")
         let second = RenderProbe.content("placeholder")
 
@@ -291,8 +296,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Bold Han text is bold, not merely a fallback font")
-    func boldHanTextKeepsItsWeight() {
+    @Test
+    func `Bold Han text is bold, not merely a fallback font`() {
         // Bold is applied by walking the rendered runs and replacing any font
         // that is still the body font. A cached fragment that already carries a
         // resolved fallback font is no longer equal to the body font, so this
@@ -310,8 +315,8 @@ struct MarkdownInlineCacheTests {
     }
 
     @MainActor
-    @Test("Two colors that resolve alike are still cached apart")
-    func colorsThatResolveAlikeAreCachedApart() {
+    @Test
+    func `Two colors that resolve alike are still cached apart`() {
         // A dynamic color repaints itself when the appearance changes; a literal
         // one with the same components today does not. A cache that keys on the
         // resolved components hands the dynamic caller the frozen color and the
@@ -329,10 +334,10 @@ struct MarkdownInlineCacheTests {
         let fromLiteral = content.cachedBodyText("同一段文字", theme: literalTheme)
 
         #expect(
-            fromDynamic.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? PlatformColor === dynamic
+            fromDynamic.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? PlatformColor === dynamic,
         )
         #expect(
-            fromLiteral.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? PlatformColor === literal
+            fromLiteral.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? PlatformColor === literal,
         )
     }
 
@@ -352,14 +357,14 @@ struct MarkdownInlineCacheTests {
                 deviceRed: resolved.redComponent,
                 green: resolved.greenComponent,
                 blue: resolved.blueComponent,
-                alpha: resolved.alphaComponent
+                alpha: resolved.alphaComponent,
             )
         #endif
     }
 
     @MainActor
-    @Test("A repeated word renders the same way at every occurrence")
-    func repeatedWordsRenderConsistently() {
+    @Test
+    func `A repeated word renders the same way at every occurrence`() {
         // The obvious way to make the cache cheaper is to key it more loosely.
         // The same word in a heading, in bold and in body text must still come
         // out with the styling of the place it sits in.
@@ -377,7 +382,7 @@ struct MarkdownInlineCacheTests {
             let range = nsText.range(
                 of: "word",
                 options: [],
-                range: NSRange(location: searchStart, length: nsText.length - searchStart)
+                range: NSRange(location: searchStart, length: nsText.length - searchStart),
             )
             guard range.location != NSNotFound else { break }
             if let font = text.attribute(.font, at: range.location, effectiveRange: nil) as? PlatformFont {

@@ -12,7 +12,7 @@ import MarkdownParser
 /// Parsed and pre-rendered markdown, ready for display in ``MarkdownTextView``.
 ///
 /// Build one off the main thread for streaming scenarios, or use
-/// ``init(markdown:theme:locale:)`` for one-shot rendering.
+/// ``init(markdown:theme:locale:isStreaming:)`` for one-shot rendering.
 public final class MarkdownContent: @unchecked Sendable {
     /// What a rendered piece of body text depends on.
     ///
@@ -55,7 +55,7 @@ public final class MarkdownContent: @unchecked Sendable {
         blocks: [MarkdownBlockNode],
         rendered: RenderedTextContent.Map,
         highlightMaps: [Int: CodeHighlighter.HighlightMap],
-        locale: Locale = .autoupdatingCurrent
+        locale: Locale = .autoupdatingCurrent,
     ) {
         self.blocks = blocks
         self.rendered = rendered
@@ -67,7 +67,7 @@ public final class MarkdownContent: @unchecked Sendable {
     public init(
         parserResult: MarkdownParser.ParseResult,
         theme: MarkdownTheme,
-        locale: Locale = .autoupdatingCurrent
+        locale: Locale = .autoupdatingCurrent,
     ) {
         blocks = parserResult.document
         rendered = parserResult.renderedContent(theme: theme)
@@ -76,16 +76,22 @@ public final class MarkdownContent: @unchecked Sendable {
     }
 
     /// Parses markdown text and pre-renders it in one step.
+    ///
+    /// Pass `isStreaming` for a document still being written: its unfinished
+    /// end is closed the way it is heading — `**bo` shows as bold, a lone
+    /// `-` is held back — see ``MarkdownParser/StreamingTail``. Build the
+    /// last update of a stream without it.
     @MainActor
     public convenience init(
         markdown: String,
         theme: MarkdownTheme = .default,
-        locale: Locale = .autoupdatingCurrent
+        locale: Locale = .autoupdatingCurrent,
+        isStreaming: Bool = false,
     ) {
         self.init(
-            parserResult: MarkdownParser().parse(markdown),
+            parserResult: MarkdownParser().parse(markdown, isStreaming: isStreaming),
             theme: theme,
-            locale: locale
+            locale: locale,
         )
     }
 
@@ -102,7 +108,7 @@ public final class MarkdownContent: @unchecked Sendable {
             text: text,
             localeIdentifier: locale.identifier,
             font: theme.fonts.body,
-            color: theme.colors.body
+            color: theme.colors.body,
         )
         if let cached = Self.inlineRenderCache.value(forKey: key) {
             return cached
@@ -113,29 +119,17 @@ public final class MarkdownContent: @unchecked Sendable {
             attributes: [
                 .font: theme.fonts.body,
                 .foregroundColor: theme.colors.body,
-            ]
-        )
-        MarkdownContentLocale.applyLanguageAttributes(
-            to: rendered,
-            fallbackLocale: locale
+            ],
         )
         // Resolve the fallback font here, once per distinct piece of text,
         // rather than leaving it to the pass over the finished document.
         // The body font covers no CJK and no emoji, so that pass was asking
         // CoreText for a substitute for the same runs on every rebuild — a
-        // third of the cost of a streaming update.
-        rendered.fixAttributes(in: NSRange(location: 0, length: rendered.length))
-        // With the font resolved, the language attribute has done its job for
-        // most scripts — and carrying it into the document triples the cost of
-        // building a framesetter, which is paid again on every rebuild. It stays
-        // only where it still changes what the reader sees.
-        let fullRange = NSRange(location: 0, length: rendered.length)
-        rendered.enumerateAttribute(.coreTextLanguage, in: fullRange, options: []) { value, range, _ in
-            guard let language = value as? String,
-                  !MarkdownContentLocale.affectsShaping(language)
-            else { return }
-            rendered.removeAttribute(.coreTextLanguage, range: range)
-        }
+        // third of the cost of a streaming update. With the font resolved, the
+        // language attribute has done its job for most scripts — and carrying
+        // it into the document triples the cost of building a framesetter,
+        // which is paid again on every rebuild.
+        MarkdownContentLocale.resolveFonts(in: rendered, fallbackLocale: locale)
         let cached = rendered.copy() as! NSAttributedString
         Self.inlineRenderCache.setValue(cached, forKey: key)
         return cached
@@ -154,14 +148,14 @@ public extension MarkdownParser.ParseResult {
             var image = MathRenderer.renderToImage(
                 latex: value,
                 fontSize: theme.fonts.body.pointSize,
-                textColor: theme.colors.body
+                textColor: theme.colors.body,
             )
             #if canImport(UIKit)
                 image = image?.withRenderingMode(.alwaysTemplate)
             #endif
             let renderedContext = RenderedTextContent(
                 image: image,
-                text: value
+                text: value,
             )
             let replacementText = MarkdownParser.replacementText(for: .math, identifier: .init(key))
             renderedContexts[replacementText] = renderedContext
@@ -185,7 +179,7 @@ public extension MarkdownParser.ParseResult {
 
 public extension MarkdownParser.ParseResult {
     @MainActor
-    fileprivate func renderHighlighMap(_: MarkdownTheme, highlightMaps: inout [Int: CodeHighlighter.HighlightMap]) {
+    fileprivate func renderHighlightMap(_: MarkdownTheme, highlightMaps: inout [Int: CodeHighlighter.HighlightMap]) {
         var pendingRequests: [CodeHighlightRequest] = []
         var queue: [MarkdownBlockNode] = document
         var index = 0
@@ -215,7 +209,7 @@ public extension MarkdownParser.ParseResult {
     @MainActor
     func highlightMaps(theme: MarkdownTheme) -> [Int: CodeHighlighter.HighlightMap] {
         var highlightMap = [Int: CodeHighlighter.HighlightMap]()
-        renderHighlighMap(theme, highlightMaps: &highlightMap)
+        renderHighlightMap(theme, highlightMaps: &highlightMap)
         return highlightMap
     }
 
