@@ -1,9 +1,12 @@
 # AGENTS.md — MarkdownView
 
-A native markdown renderer (AppKit/UIKit text views behind a SwiftUI wrapper),
-used as the chat transcript's text engine in the AirBuild app. It is consumed
-there as a **released SPM version**, so a fix for that app is: land here, tag,
-then bump the app's `Package.resolved`.
+A native markdown renderer (AppKit/UIKit text views behind a SwiftUI wrapper).
+It is consumed as a **released SPM version** through `remarka-view`
+(`Kaiyou-Digital/remarka-view`, which pins this package with `exact:`), which in
+turn is used by Remarka and Curator. A fix for those apps is: land here, tag,
+bump the pin in remarka-view's `Package.swift` and tag it, then bump
+`exactVersion` for `RemarkaView` in each app's `project.yml`. Remarka and Curator
+should stay on the same RemarkaView version.
 
 ## Verify
 
